@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow, dialog, app } from 'electron'
 import { IPC_CHANNELS } from '../../lib/types'
 import type { AgentMode, PermissionAction, PermissionMode } from '../../lib/types'
+import type { Expert } from '../../lib/expert-types'
 import { officeAgent } from './agent'
 import { orchestrator } from './orchestrator'
 import { toolRegistry } from './tools/registry'
@@ -328,6 +329,34 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.EXPERT_CREATE, async (_event, req: any) => {
     return expertService.create(req)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_UPDATE, async (_event, expert: Expert) => {
+    return expertService.update(expert)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_DELETE, async (_event, id: string) => {
+    return expertService.delete(id)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_TOGGLE_STATUS, async (_event, id: string, status: any) => {
+    return expertService.toggleStatus(id, status)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_TOGGLE_OVERALL, async (_event, id: string, isOverall: boolean) => {
+    return expertService.toggleOverall(id, isOverall)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_SQUARE_LIST, async () => {
+    return expertService.squareList()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_CLONE, async (_event, sourceId: string) => {
+    return expertService.clone(sourceId)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.EXPERT_TEST_RUN, async (_event, params: any) => {
+    return expertService.testRun(params)
   })
 
   // ---- Plugin ----

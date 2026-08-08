@@ -18,6 +18,7 @@ import { CloudAgentPanel } from '../components/CloudAgentPanel'
 import { InspirationPanel } from '../components/InspirationPanel'
 import { AssistantPanel } from '../components/AssistantPanel'
 import { AssistantSettings } from '../components/AssistantSettings'
+import { FeedbackPanel } from '../components/FeedbackPanel'
 import type { AgentMailbox } from '../lib/mailbox-types'
 import { useAgent } from '../hooks/useAgent'
 import { useSession } from '../hooks/useSession'
@@ -28,7 +29,7 @@ import type { Expert, ExpertTeam } from '../lib/expert-types'
 
 const ipc = createIpcClient()
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback'
 
 export default function App() {
   const { messages, activePlan, isProcessing, mode, setMode, modelId, setModelId, sendMessage, stopAgent, setMessages } = useAgent()
@@ -228,6 +229,8 @@ export default function App() {
             <AssistantPanel onNavigateToSettings={() => setActiveView('assistant-settings')} />
           ) : activeView === 'assistant-settings' ? (
             <AssistantSettings onBack={() => setActiveView('settings')} />
+          ) : activeView === 'feedback' ? (
+            <FeedbackPanel onClose={handleNavigateToChat} />
           ) : hasMsg ? (
             <ChatPanel
               messages={messages}

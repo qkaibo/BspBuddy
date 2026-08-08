@@ -2,6 +2,19 @@
 // Expert types for BspBuddy
 // ============================================================
 
+// ---------- Expert lifecycle ----------
+export type ExpertStatus = 'draft' | 'online' | 'offline'
+
+// ---------- Expert bindings ----------
+export interface ExpertBindings {
+  sopSkills: string[]
+  skills: string[]
+  mcpServers: string[]
+  knowledgeBases: string[]
+  connectors: string[]
+  modelId?: string
+}
+
 // ---------- Expert ----------
 export interface Expert {
   id: string
@@ -20,6 +33,9 @@ export interface Expert {
   updatedAt?: number
   rating?: number
   usageCount?: number
+  status: ExpertStatus
+  isOverall: boolean
+  bindings: ExpertBindings
 }
 
 export interface ExpertExample {

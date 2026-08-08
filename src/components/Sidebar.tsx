@@ -4,7 +4,7 @@ import {
   Bell, ChevronDown, ChevronRight, Trash2, Share2,
   Archive, Edit3, Download, Pin,
   PanelLeftClose, SlidersHorizontal, User, Crosshair,
-  Network, Repeat, Grid3x3, Link, Sparkles,
+  Network, Repeat, Grid3x3, Link, Sparkles, Mail,
 } from 'lucide-react'
 
 interface Session {
@@ -16,7 +16,7 @@ interface Session {
   status?: 'in_progress' | 'completed' | 'failed' | 'pending' | 'planning' | 'archived'
 }
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback'
 
 interface Props {
   sessions: Session[]
@@ -328,6 +328,8 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
               >
                 <SubMenuItem icon={FolderOpen} label="资料库" onClick={() => { onNavigate?.('data'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={Sparkles} label="灵感" onClick={() => { onNavigate?.('inspiration'); setMoreMenuOpen(false) }} />
+                <SubMenuItem icon={Mail} label="邮箱" onClick={() => { onNavigate?.('mailbox'); setMoreMenuOpen(false) }} />
+                <SubMenuItem icon={MessageSquare} label="反馈" onClick={() => { onNavigate?.('feedback'); setMoreMenuOpen(false) }} />
               </div>
             )}
           </div>

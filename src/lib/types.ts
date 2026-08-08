@@ -179,6 +179,13 @@ export const IPC_CHANNELS = {
   EXPERT_SUMMON: 'expert:summon',
   EXPERT_TEAM_EXECUTE: 'expert:team-execute',
   EXPERT_CREATE: 'expert:create',
+  EXPERT_UPDATE: 'expert:update',
+  EXPERT_DELETE: 'expert:delete',
+  EXPERT_TOGGLE_STATUS: 'expert:toggle-status',
+  EXPERT_TOGGLE_OVERALL: 'expert:toggle-overall',
+  EXPERT_SQUARE_LIST: 'expert:square-list',
+  EXPERT_CLONE: 'expert:clone',
+  EXPERT_TEST_RUN: 'expert:test-run',
   PLUGIN_INSTALL: 'plugin:install',
   PLUGIN_UNINSTALL: 'plugin:uninstall',
   PLUGIN_LIST: 'plugin:list',
@@ -312,6 +319,17 @@ export const IPC_CHANNELS = {
   CONNECTOR_CONNECT: 'connector:connect',
   CONNECTOR_DISCONNECT: 'connector:disconnect',
   CONNECTOR_STATUS: 'connector:status',
+  // SOP Skills
+  SOP_LIST: 'sop:list',
+  SOP_CREATE: 'sop:create',
+  SOP_DELETE: 'sop:delete',
+  // Knowledge Base
+  KNOWLEDGE_LIST: 'knowledge:list',
+  KNOWLEDGE_CREATE: 'knowledge:create',
+  KNOWLEDGE_DELETE: 'knowledge:delete',
+  // Feedback
+  FEEDBACK_SUMMARY: 'feedback:summary',
+  FEEDBACK_LIST: 'feedback:list',
 } as const
 
 // ---------- Agent mode ----------

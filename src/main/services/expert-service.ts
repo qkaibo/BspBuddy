@@ -24,6 +24,9 @@ const BUILTIN_EXPERTS: Expert[] = [
       { title: '项目复盘', description: '分析项目延期原因', prompt: '上周的项目交付延期了3天，帮我分析原因和改进措施', expectedOutput: '延期原因分析、改进建议和预防措施' },
     ],
     isCustom: false,
+    status: 'online',
+    isOverall: false,
+    bindings: { sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [] },
     rating: 4.8,
     usageCount: 15600,
   },
@@ -41,6 +44,9 @@ const BUILTIN_EXPERTS: Expert[] = [
       { title: '销售数据分析', description: '分析季度销售数据并提供增长建议', prompt: '分析Q2销售数据，找出增长最快的产品线和区域', expectedOutput: '趋势分析报告、热力图和增长建议' },
     ],
     isCustom: false,
+    status: 'online',
+    isOverall: false,
+    bindings: { sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [] },
     rating: 4.6,
     usageCount: 12300,
   },
@@ -58,6 +64,9 @@ const BUILTIN_EXPERTS: Expert[] = [
       { title: '撰写周报', description: '根据本周工作自动生成周报', prompt: '帮我生成本周的周报，本周完成了用户登录模块开发、修复了3个线上bug、参与了产品需求评审', expectedOutput: '格式规范的周报文档' },
     ],
     isCustom: false,
+    status: 'online',
+    isOverall: false,
+    bindings: { sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [] },
     rating: 4.7,
     usageCount: 18900,
   },
@@ -75,6 +84,9 @@ const BUILTIN_EXPERTS: Expert[] = [
       { title: '代码审查', description: '审查代码并提供优化建议', prompt: '帮我审查这段API代码的安全性和性能', expectedOutput: '安全问题列表、性能瓶颈分析和改进建议' },
     ],
     isCustom: false,
+    status: 'online',
+    isOverall: false,
+    bindings: { sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [] },
     rating: 4.9,
     usageCount: 22100,
   },
@@ -249,6 +261,9 @@ export const expertService = {
       updatedAt: Date.now(),
       rating: 0,
       usageCount: 0,
+      status: 'draft',
+      isOverall: false,
+      bindings: { sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [] },
     }
 
     const userExperts = loadUserExperts()
@@ -261,5 +276,83 @@ export const expertService = {
   /** Get experts by category */
   getByCategory(category: string): Expert[] {
     return this.list().filter((e) => e.categories.includes(category))
+  },
+
+  /** Update an existing expert */
+  update(updated: Expert): ExpertSummonResult {
+    const userExperts = loadUserExperts()
+    const idx = userExperts.findIndex((e) => e.id === updated.id)
+    if (idx === -1) return { success: false, error: `找不到专家: ${updated.id}` }
+
+    userExperts[idx] = { ...updated, updatedAt: Date.now() }
+    saveUserExperts(userExperts)
+    return { success: true, expert: userExperts[idx] }
+  },
+
+  /** Delete a user-created expert */
+  delete(id: string): { success: boolean; error?: string } {
+    const userExperts = loadUserExperts()
+    const idx = userExperts.findIndex((e) => e.id === id)
+    if (idx === -1) return { success: false, error: `找不到专家: ${id}` }
+
+    userExperts.splice(idx, 1)
+    saveUserExperts(userExperts)
+    return { success: true }
+  },
+
+  /** Toggle expert online/offline status */
+  toggleStatus(id: string, status: Expert['status']): ExpertSummonResult {
+    const userExperts = loadUserExperts()
+    const idx = userExperts.findIndex((e) => e.id === id)
+    if (idx === -1) return { success: false, error: `找不到专家: ${id}` }
+
+    userExperts[idx] = { ...userExperts[idx], status, updatedAt: Date.now() }
+    saveUserExperts(userExperts)
+    return { success: true, expert: userExperts[idx] }
+  },
+
+  /** Toggle isOverall (publish/unpublish to square) */
+  toggleOverall(id: string, isOverall: boolean): ExpertSummonResult {
+    const userExperts = loadUserExperts()
+    const idx = userExperts.findIndex((e) => e.id === id)
+    if (idx === -1) return { success: false, error: `找不到专家: ${id}` }
+
+    userExperts[idx] = { ...userExperts[idx], isOverall, updatedAt: Date.now() }
+    saveUserExperts(userExperts)
+    return { success: true, expert: userExperts[idx] }
+  },
+
+  /** List experts published to the square */
+  squareList(): Expert[] {
+    return this.list().filter((e) => e.isOverall && e.status === 'online')
+  },
+
+  /** Clone an expert from the square to the user's experts */
+  clone(sourceId: string): ExpertSummonResult {
+    const source = this.list().find((e) => e.id === sourceId)
+    if (!source) return { success: false, error: `找不到专家: ${sourceId}` }
+
+    const clone: Expert = {
+      ...source,
+      id: `expert-user-${uuid()}`,
+      name: `${source.name} (副本)`,
+      isCustom: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      status: 'draft',
+      isOverall: false,
+      rating: 0,
+      usageCount: 0,
+    }
+
+    const userExperts = loadUserExperts()
+    userExperts.push(clone)
+    saveUserExperts(userExperts)
+    return { success: true, expert: clone, sessionId: uuid(), welcomeMessage: `已复制专家「${source.name}」，可在管理 Tab 中编辑。` }
+  },
+
+  /** Test run — placeholder for now */
+  testRun(_params: { persona: string; methodology: string; bindings: unknown; message: string }): { response: string } {
+    return { response: `Test Run 已调用。\n\n人设: ${_params.persona.slice(0, 100)}...\n消息: ${_params.message}\n\n（完整 Agent Test Run 需要后端 AI 服务支持）` }
   },
 }
