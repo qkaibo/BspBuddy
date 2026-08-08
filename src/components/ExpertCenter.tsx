@@ -57,12 +57,17 @@ export function ExpertCenter({ onClose, onSummonExpert, onTeamExecute }: Props) 
   }, [])
 
   async function loadData() {
-    const [expertList, teamList] = await Promise.all([
-      ipc.invoke(IPC_CHANNELS.EXPERT_LIST) as Promise<Expert[]>,
-      ipc.invoke(IPC_CHANNELS.EXPERT_TEAM_LIST) as Promise<ExpertTeam[]>,
-    ])
-    setExperts(expertList)
-    setTeams(teamList)
+    try {
+      const [expertList, teamList] = await Promise.all([
+        ipc.invoke(IPC_CHANNELS.EXPERT_LIST) as Promise<Expert[]>,
+        ipc.invoke(IPC_CHANNELS.EXPERT_TEAM_LIST) as Promise<ExpertTeam[]>,
+      ])
+      console.log('[ExpertCenter] loaded', expertList.length, 'experts,', teamList.length, 'teams')
+      setExperts(expertList)
+      setTeams(teamList)
+    } catch (err) {
+      console.error('[ExpertCenter] loadData failed:', err)
+    }
   }
 
   async function handleSummon(expert: Expert) {
