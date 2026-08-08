@@ -1,7 +1,7 @@
-# WorkBuddy 实现计划 — 总索引
+# BspBuddy 实现计划 — 总索引
 
-> 基于 38 篇 SPEC 文档，按功能域分组，共 18 个 Plan 文件
-> 每个 Plan 对应一个或多个相关 SPEC 文档
+> 基于 38 篇 SPEC 文档 + StaffDeck 融合，按功能域分组，共 19 个 Plan 文件
+> 每个 Plan 文件位于 `docs/plans/`，本 README 仅作进度看板
 >
 > **UI 布局说明（2026-08-04）：** 桌面端欢迎态布局以截图参考 SPEC 为准 —— [`../components/workbuddy-reference-layout.spec.md`](../components/workbuddy-reference-layout.spec.md)（优先级高于旧 docs 文字推断）。实现品牌为 BspBuddy。
 
@@ -9,24 +9,25 @@
 
 | # | Plan | 对应 SPEC | Phase | 状态 | 交叉验证 |
 |---|------|-----------|-------|:--:|:--:|
-| 01 | [task-bar](./01-task-bar.md) | Task-Bar | P0 | ✅ 已完成 | ✅ |
-| 02 | [task-management](./02-task-management.md) | Create-Task, Task-Management | P0 | ✅ 已完成 | ✅ |
-| 03 | [conversation](./03-conversation.md) | Conversation | P0 | ✅ 已完成 | ✅ |
-| 04 | [results](./04-results.md) | Results | P0 | ✅ 已完成 | ✅ |
-| 05 | [claw-assistant](./05-claw-assistant.md) | Claw, WeixinBot-Guide, Wechat-Guide, Wecom-Guide, QQ-Guide, Feishu-Guide, Dingtalk-Guide, YuanBaoPai-Guide, Assistant | P3 | ❌ 待开发 | ✅ 修复 |
-| 06 | [plugins-ecosystem](./06-plugins-ecosystem.md) | Plugins, Plug-In, Skills-Market, Expert-Center, MCP-Guide | P3 | ❌ 待开发 | ✅ 修复 |
-| 07 | [project](./07-project.md) | Project | P3 | ❌ 待开发 | ✅ 修复 |
-| 08 | [connector](./08-connector.md) | Connector | P3 | ❌ 待开发 | ✅ 修复 |
-| 09 | [automation](./09-automation.md) | Automation-Guide | P3 | ❌ 待开发 | ✅ 修复 |
-| 10 | [permission](./10-permission.md) | Permission-Modes | P3 | ❌ 待开发 | ✅ 修复 |
-| 11 | [memory](./11-memory.md) | Memory | P3 | ❌ 待开发 | ✅ 修复 |
-| 12 | [design-idea](./12-design-idea.md) | Design-Idea | P3 | ❌ 待开发 | ✅ 修复 |
-| 13 | [mailbox](./13-mailbox.md) | Mailbox | P3 | ❌ 待开发 | ✅ 修复 |
-| 14 | [inspiration](./14-inspiration.md) | Ispiration, Exploration | P3 | ❌ 待开发 | ✅ 修复 |
-| 15 | [cloud-agent](./15-cloud-agent.md) | CloudAgent | P3 | ❌ 待开发 | ✅ 修复 |
-| 16 | [pricing](./16-pricing.md) | Pricing, Credits | P3 | ❌ 待开发 | ✅ 修复 |
-| 17 | [data-settings](./17-data-settings.md) | Data, Setting | P3 | ❌ 待开发 | ✅ 修复 |
-| 18 | [installation](./18-installation.md) | Installation-Win-Guide, Installation-Mac-Guide | P3 | ❌ 待开发 | ✅ 修复 |
+| 01 | [task-bar](../../docs/plans/01-task-bar.md) | Task-Bar | P0 | ✅ 已完成 | ✅ |
+| 02 | [task-management](../../docs/plans/02-task-management.md) | Create-Task, Task-Management | P0 | ✅ 已完成 | ✅ |
+| 03 | [conversation](../../docs/plans/03-conversation.md) | Conversation | P0 | ✅ 已完成 | ✅ |
+| 04 | [results](../../docs/plans/04-results.md) | Results | P0 | ✅ 已完成 | ✅ |
+| 05 | [claw-assistant](../../docs/plans/05-claw-assistant.md) | Claw, WeixinBot-Guide, Wechat-Guide, Wecom-Guide, QQ-Guide, Feishu-Guide, Dingtalk-Guide, YuanBaoPai-Guide, Assistant | P3 | ❌ 待开发 | ✅ 修复 |
+| 06 | [plugins-ecosystem](../../docs/plans/06-plugins-ecosystem.md) | Plugins, Plug-In, Skills-Market, Expert-Center, MCP-Guide | P3 | ❌ 待开发 | ✅ 修复 |
+| 07 | [project](../../docs/plans/07-project.md) | Project | P3 | ❌ 待开发 | ✅ 修复 |
+| 08 | [connector](../../docs/plans/08-connector.md) | Connector | P3 | ❌ 待开发 | ✅ 修复 |
+| 09 | [automation](../../docs/plans/09-automation.md) | Automation-Guide | P3 | ❌ 待开发 | ✅ 修复 |
+| 10 | [permission](../../docs/plans/10-permission.md) | Permission-Modes | P3 | ❌ 待开发 | ✅ 修复 |
+| 11 | [memory](../../docs/plans/11-memory.md) | Memory | P3 | ❌ 待开发 | ✅ 修复 |
+| 12 | [design-idea](../../docs/plans/12-design-idea.md) | Design-Idea | P3 | ❌ 待开发 | ✅ 修复 |
+| 13 | [mailbox](../../docs/plans/13-mailbox.md) | Mailbox | P3 | ❌ 待开发 | ✅ 修复 |
+| 14 | [inspiration](../../docs/plans/14-inspiration.md) | Ispiration, Exploration | P3 | ❌ 待开发 | ✅ 修复 |
+| 15 | [cloud-agent](../../docs/plans/15-cloud-agent.md) | CloudAgent | P3 | ❌ 待开发 | ✅ 修复 |
+| 16 | [pricing](../../docs/plans/16-pricing.md) | Pricing, Credits | P3 | ❌ 待开发 | ✅ 修复 |
+| 17 | [data-settings](../../docs/plans/17-data-settings.md) | Data, Setting | P3 | ❌ 待开发 | ✅ 修复 |
+| 18 | [installation](../../docs/plans/18-installation.md) | Installation-Win-Guide, Installation-Mac-Guide | P3 | ❌ 待开发 | ✅ 修复 |
+| 19 | [expert-management](../../docs/plans/19-expert-management.md) | ✦ StaffDeck: prd-001 Agent 管理, prd-014 开放广场 | P3 | 🟡 开发中 | — |
 
 ## 修复记录
 
@@ -74,7 +75,7 @@
 ## 开发优先级建议
 
 1. **P0-P2 已完成** → 不需要额外开发
-2. **P3 第一批** → 06 插件生态 (Skills/MCP/Expert) + 05 远程助理 (Claw)
+2. **P3 第一批** → 06 插件生态 (Skills/MCP/Expert) + 19 专家管理 (StaffDeck 融合) + 05 远程助理 (Claw)
 3. **P3 第二批** → 07 项目协作 + 08 连接器 + 09 自动化
 4. **P3 第三批** → 10 权限 + 11 记忆 + 14 灵感
 5. **P3 第四批** → 12 创意画布 + 13 邮箱 + 15 企业智能体
