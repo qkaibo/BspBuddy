@@ -1,0 +1,72 @@
+{
+  "name": "bspbuddy",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BspBuddy - AI-powered desktop workbench",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron ."
+  },
+  "build": {
+    "appId": "com.workbuddy.app",
+    "productName": "WorkBuddy",
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "artifactName": "WorkBuddy-${version}-${arch}.${ext}",
+      "category": "public.app-category.developer-tools",
+      "minimumSystemVersion": "12.0"
+    },
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "WorkBuddy-${version}-setup.${ext}",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "license": "LICENSE.txt"
+    },
+    "protocols": {
+      "name": "WorkBuddy",
+      "schemes": ["workbuddy"]
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://updates.workbuddy.com"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.0",
+    "mime-types": "^2.1.35",
+    "openai": "^4.73.0",
+    "python-shell": "^5.0.0",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@types/mime-types": "^2.1.4",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.1",
+    "electron-vite": "^2.3.0",
+    "lucide-react": "^0.460.0",
+    "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.6.3"
+  }
+}

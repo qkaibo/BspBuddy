@@ -1,0 +1,33 @@
+---
+description: Agent 模式、编排器与工具注册约定
+globs: src/main/services/agent.ts,src/main/services/orchestrator.ts,src/main/services/ai.ts,src/main/services/tools/**/*.ts,src/main/python-bridge.ts
+alwaysApply: false
+---
+
+# Agent 与 Tools
+
+## 模式（`AgentMode`）
+
+| 模式 | 行为 |
+|------|------|
+| `ask` | 仅对话，不执行工具 |
+| `plan` | 生成计划并返回确认（`awaitingConfirm`） |
+| `craft` | 规划后立即由 orchestrator 执行 |
+| `design` | 设计/创意流程（Ardot） |
+
+## 工具流水线
+
+1. 在 `src/main/services/tools/` 实现工具
+2. 在对应模块注册（由 `registerIpcHandlers` / registry 启动时调用）
+3. 通过 `toolRegistry` 暴露给 Agent/LLM
+4. 返回 `ToolResult`（`success`、`data`/`error`，可选 `artifacts`）
+
+## 进度
+
+- Orchestrator 发进度 → 主进程 `IPC_CHANNELS.TASK_PROGRESS`
+- UI 在 `useAgent` 中监听并更新 `activePlan.steps`
+
+## Python / Office
+
+- 脚本通过 `python-bridge` 执行，不要在单个 tool 里随意 `spawn`
+- Word/Excel/PPT 相关工具在 `tools/office.ts`

@@ -1,0 +1,29 @@
+---
+description: IPC 通道与主进程 service 约定
+globs: src/main/**/*.ts,src/lib/types.ts,src/preload/**/*.ts,src/lib/client.ts
+alwaysApply: false
+---
+
+# IPC 与 Services
+
+## 通道命名
+
+`src/lib/types.ts` 中的 `IPC_CHANNELS` 使用 `domain:action`：
+
+```
+skill:list | fs:read-file | agent:execute-task | session:save
+```
+
+## 新增 IPC 功能（必做清单）
+
+1. 在 `src/lib/types.ts` 的 `IPC_CHANNELS` 增加常量
+2. 在 `src/main/services/ipc-handlers.ts` 注册 `ipcMain.handle(...)`
+3. 业务逻辑放进 `src/main/services/*-service.ts`——handler 保持薄转发
+4. UI/hooks 通过 `createIpcClient().invoke(IPC_CHANNELS.X, ...)` 调用
+
+## 约定
+
+- 推送事件（进度、流）：`webContents.send(channel, payload)` + renderer `ipc.on`
+- 请求/响应：只用 `ipcMain.handle`
+- preload 保持通用（`invoke` / `on` / `off`），不要为每个通道单独暴露方法
+- 新 handler 参数优先用 `src/lib/*-types.ts` 类型，避免 `any`

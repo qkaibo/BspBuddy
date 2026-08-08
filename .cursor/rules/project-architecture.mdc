@@ -1,0 +1,37 @@
+---
+description: BspBuddy Electron 架构、分层与项目地图
+alwaysApply: true
+---
+
+# 项目架构
+
+BspBuddy 是 Electron + React + TypeScript 的 AI 桌面工作台。
+
+## 品牌命名
+
+- 产品名固定为 **BspBuddy**（包名 `bspbuddy`）
+- 禁止在代码、UI 文案、注释、提交说明、文档、配置里新写或保留 `WorkBuddy` / `workbuddy`
+- 参考上游 SPEC/竞品时，表述用「参考实现」或「SPEC」，不要把项目称为 WorkBuddy
+- 若改动触及旧字符串（如 `productName`、协议 scheme、文案），一并改为 BspBuddy / `bspbuddy`（协议等需与现有配置一致时先确认再改）
+
+## 分层
+
+| 层 | 路径 | 职责 |
+|----|------|------|
+| Main | `src/main/` | Node/Electron：services、tools、IPC、Python bridge |
+| Preload | `src/preload/` | 仅 `contextBridge`，暴露通用 `invoke/on/off` |
+| Renderer | `src/renderer/` + `src/components/` + `src/hooks/` | React UI |
+| Shared | `src/lib/` | 类型、`IPC_CHANNELS`、IPC client |
+
+## 硬边界
+
+- 禁止在 renderer/components/hooks 中使用 Node API（`fs`、`child_process`、`electron.app`）
+- UI 只能通过 `createIpcClient()` + `IPC_CHANNELS` 与主进程通信
+- 领域类型放在 `src/lib/*-types.ts`；核心/Agent 类型放在 `src/lib/types.ts`
+- 路径别名：`@/*` → `src/`
+
+## 脚手架 ≠ 已上线
+
+大量 P3 文件已存在（插件、IM、连接器、记忆等），但可能未完成。
+改功能前先查 `specs/plans/README.md` 状态，并阅读对应 `specs/plans/0X-*.md`。
+不要发明与 SPEC 冲突的产品行为。

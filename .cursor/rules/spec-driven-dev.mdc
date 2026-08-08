@@ -1,0 +1,33 @@
+---
+description: 以 specs/plans 为准开发，禁止臆造产品行为
+alwaysApply: true
+---
+
+# 规格驱动开发
+
+事实来源：`specs/` 文档与 `specs/plans/0X-*.md`。进度看板：`specs/plans/README.md`。
+
+产品名是 **BspBuddy**。SPEC/plan 里若出现 WorkBuddy，视为上游参考文档，实现与对外文案一律用 BspBuddy，不要照抄品牌名。
+
+## 实现前
+
+1. 先读对应 `specs/plans/` 下的 plan
+2. 以 SPEC 的产品选择为准，不要本地另起炉灶
+3. 已在 plan 中修过的坑（禁止回退）：
+   - Design → 只用 Ardot（不要换成 Excalidraw/tldraw/Figma）
+   - Mailbox → Agent Mail 服务（不要做成通用 IMAP/SMTP）
+   - 自动化推送 → 仅小程序（不要改成随意 IM/邮件）
+   - 权限 UI → 输入框下方下拉（不要做成独立设置页）
+
+## P3 优先级（来自 plans README）
+
+1. 06 插件生态 + 05 远程助理
+2. 07 项目协作 + 08 连接器 + 09 自动化
+3. 10 权限 + 11 记忆 + 14 灵感
+4. 12 创意画布 + 13 邮箱 + 15 企业智能体
+5. 16 定价 + 17 数据设置 + 18 安装
+
+## 实现后
+
+- 仅当行为真正符合 SPEC 时，才更新 `specs/plans/README.md` 状态
+- 空脚手架不要标成已完成

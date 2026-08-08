@@ -1,0 +1,75 @@
+import { useCallback } from 'react'
+import { createIpcClient } from '../lib/client'
+import { IPC_CHANNELS } from '../lib/types'
+import type { Message, TaskPlan } from '../lib/types'
+
+export interface SessionData {
+  id: string
+  title: string
+  date: string
+  messages: Message[]
+  plan: TaskPlan | null
+  workspace?: string
+  mode?: string
+  modelId?: string
+}
+
+const ipc = createIpcClient()
+
+export function useSession() {
+  const saveSession = useCallback(async (
+    id: string,
+    title: string,
+    messages: Message[],
+    plan: TaskPlan | null,
+    workspace?: string,
+    mode?: string,
+    modelId?: string,
+  ) => {
+    const session: SessionData = {
+      id,
+      title,
+      date: new Date().toLocaleDateString(),
+      messages,
+      plan,
+      workspace,
+      mode,
+      modelId,
+    }
+    try {
+      await ipc.invoke(IPC_CHANNELS.SESSION_SAVE, session)
+    } catch (err) {
+      console.error('Failed to save session:', err)
+    }
+  }, [])
+
+  const loadSession = useCallback(async (id: string): Promise<SessionData | null> => {
+    try {
+      const result = await ipc.invoke(IPC_CHANNELS.SESSION_LOAD, id)
+      return result as SessionData
+    } catch (err) {
+      console.error('Failed to load session:', err)
+      return null
+    }
+  }, [])
+
+  const listSessions = useCallback(async (): Promise<SessionData[]> => {
+    try {
+      const result = await ipc.invoke(IPC_CHANNELS.SESSION_LIST)
+      return (result as SessionData[]) || []
+    } catch (err) {
+      console.error('Failed to list sessions:', err)
+      return []
+    }
+  }, [])
+
+  const deleteSession = useCallback(async (id: string): Promise<void> => {
+    try {
+      await ipc.invoke(IPC_CHANNELS.SESSION_DELETE, id)
+    } catch (err) {
+      console.error('Failed to delete session:', err)
+    }
+  }, [])
+
+  return { saveSession, loadSession, listSessions, deleteSession }
+}

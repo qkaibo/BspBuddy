@@ -1,0 +1,32 @@
+---
+description: React UI、hooks 与面板约定
+globs: src/components/**/*.tsx,src/renderer/**/*.tsx,src/hooks/**/*.ts
+alwaysApply: false
+---
+
+# React UI
+
+## 结构
+
+- 面板/视图 → `src/components/`
+- Agent/会话/权限状态 → `src/hooks/`（`useAgent`、`useSession` 等）
+- 根壳与视图切换 → `src/renderer/App.tsx` 的 `activeView`（不引入 React Router）
+
+## UI 侧 IPC
+
+```tsx
+import { createIpcClient } from '../lib/client'
+import { IPC_CHANNELS } from '../lib/types'
+
+const ipc = createIpcClient()
+await ipc.invoke(IPC_CHANNELS.SKILL_LIST)
+```
+
+- 组件内禁止使用 `ipcRenderer` 或 Node API
+- 用 `ipc.on` 订阅，在 `useEffect` 清理时用 `ipc.off`
+
+## UI 技术栈
+
+- Tailwind 工具类
+- 图标：`lucide-react`
+- 新功能面板：先加组件 → 接入 Sidebar + `activeView` → 再补逻辑
