@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反-slop 设计系统 - 组件展示</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing: border-box; }
+
+    :root, [data-theme="light"] {
+      --color-primary: #1a1a1a;
+      --color-secondary: #666;
+      --color-accent: #0d9488;
+      --color-bg: #fafafa;
+      --color-surface: #fff;
+      --color-border: #e5e5e5;
+      --color-success: #16a34a;
+      --color-warning: #d97706;
+      --color-error: #dc2626;
+      --color-info: #2563eb;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+    }
+
+    [data-theme="dark"] {
+      --color-primary: #fafafa;
+      --color-secondary: #a1a1aa;
+      --color-accent: #2dd4bf;
+      --color-bg: #0a0a0a;
+      --color-surface: #171717;
+      --color-border: #262626;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      color: var(--color-primary);
+      line-height: 1.6;
+    }
+
+    /* 导航 */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .nav-brand {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .nav-links { display: flex; gap: var(--space-8); }
+
+    .nav-links a {
+      font-size: 1rem;
+      color: var(--color-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--color-primary); }
+
+    .theme-toggle {
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: var(--color-bg);
+      transform: translateY(-1px);
+    }
+
+    /* 主内容 */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-8);
+    }
+
+    /* 区块 */
+    .section {
+      margin-bottom: var(--space-16);
+    }
+
+    .section-header {
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      border-bottom: 2px solid var(--color-border);
+    }
+
+    .section-header h2 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+
+    .section-header p {
+      font-size: 1rem;
+      color: var(--color-secondary);
+    }
+
+    /* 排版展示 */
+    .type-scale {
+      display: grid;
+      gap: var(--space-6);
+    }
+
+    .type-item {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    .type-label {
+      min-width: 120px;
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+      font-weight: 500;
+    }
+
+    .type-preview h1 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 3rem;
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0.05em;
+    }
+
+    .type-preview h2 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .type-preview h3 {
+      font-family: 'Noto Sans SC', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .type-preview p {
+      font-size: 1rem;
+      line-height: 1.75;
+    }
+
+    .type-preview small {
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+    }
+
+    .type-preview tiny {
+      font-size: 0.75rem;
+      color: var(--color-secondary);
+    }
+
+    /* 配色展示 */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .color-card {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+    }
+
+    .color-swatch {
+      height: 120px;
+      display: flex;
+      align-items: flex-end;
+      padding: var(--space-3);
+    }
+
+    .color-swatch span {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    .color-info {
+      padding: var(--space-3);
+      background: var(--color-surface);
+    }
+
+    .color-info .color-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: var(--space-1);
+    }
+
+    .color-info .color-value {
+      font-size: 0.75rem;
+      color: var(--color-secondary);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* 按钮展示 */
+    .button-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+
+    .btn {
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--color-primary);
+    }
+
+    .btn-primary:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      color: var(--color-primary);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--color-bg);
+      border-color: var(--color-primary);
+    }
+
+    .btn-danger {
+      color: #fff;
+      background: var(--color-error);
+    }
+
+    .btn-danger:hover { background: #b91c1c; }
+
+    .btn-ghost {
+      color: var(--color-primary);
+      background: transparent;
+    }
+
+    .btn-ghost:hover {
+      background: var(--color-bg);
+    }
+
+    .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+    .btn-lg { padding: 1rem 2rem; font-size: 1.125rem; }
+
+    /* 卡片展示 */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-6);
+    }
+
+    .card {
+      padding: var(--space-6);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .card-title {
+      margin-bottom: var(--space-3);
+      font-family: 'Noto Sans SC', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .card-body {
+      font-size: 1rem;
+      line-height: 1.75;
+      color: var(--color-secondary);
+    }
+
+    /* 表单展示 */
+    .form-grid {
+      display: grid;
+      gap: var(--space-6);
+      max-width: 600px;
+    }
+
+    .form-group {
+      margin-bottom: var(--space-4);
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: var(--space-2);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-secondary);
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      color: var(--color-primary);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    }
+
+    /* 表格展示 */
+    .table-wrapper {
+      overflow-x: auto;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1rem;
+    }
+
+    thead {
+      background: var(--color-bg);
+      border-bottom: 2px solid var(--color-border);
+    }
+
+    th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    tbody tr:hover { background: var(--color-bg); }
+
+    /* 徽章/标签 */
+    .badge-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-radius: 4px;
+    }
+
+    .badge-success { background: #f0fdf4; color: #166534; }
+    .badge-warning { background: #fef9c3; color: #854d0e; }
+    .badge-error { background: #fef2f2; color: #991b1b; }
+    .badge-info { background: #eff6ff; color: #1e40af; }
+
+    /* 统计卡片 */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .stat-card {
+      padding: var(--space-6);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+      margin-bottom: var(--space-2);
+    }
+
+    .stat-value {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: var(--space-1);
+    }
+
+    .stat-change {
+      font-size: 0.875rem;
+    }
+
+    .stat-change.positive { color: var(--color-success); }
+    .stat-change.negative { color: var(--color-error); }
+
+    /* 代码展示 */
+    .code-block {
+      padding: var(--space-4);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .main { padding: var(--space-4); }
+      .color-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航 -->
+  <nav class="navbar">
+    <div class="nav-brand">反-slop 设计系统</div>
+    <div class="nav-links">
+      <a href="#typography">排版</a>
+      <a href="#colors">配色</a>
+      <a href="#buttons">按钮</a>
+      <a href="#cards">卡片</a>
+      <a href="#forms">表单</a>
+      <a href="#tables">表格</a>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()">🌙 暗色模式</button>
+  </nav>
+
+  <!-- 主内容 -->
+  <div class="main">
+    <!-- 标题 -->
+    <div class="section">
+      <h1 style="font-family: 'Noto Serif SC', serif; font-size: 3rem; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem;">
+        反-slop 设计系统
+      </h1>
+      <p style="font-size: 1.125rem; color: var(--color-secondary); max-width: 600px;">
+        有品味的中文UI设计规范。反对蓝紫渐变、毛玻璃、无意义的动画。
+        每个设计决策都有理由，有克制，有细节。
+      </p>
+    </div>
+
+    <!-- 排版 -->
+    <div class="section" id="typography">
+      <div class="section-header">
+        <h2>排版系统</h2>
+        <p>中英文字体搭配、字号层级、行高与字间距</p>
+      </div>
+      <div class="type-scale">
+        <div class="type-item">
+          <div class="type-label">H1 页面标题</div>
+          <div class="type-preview">
+            <h1>设计系统规范</h1>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-label">H2 章节标题</div>
+          <div class="type-preview">
+            <h2>排版系统设计</h2>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-label">H3 小节标题</div>
+          <div class="type-preview">
+            <h3>字体选择原则</h3>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-label">正文</div>
+          <div class="type-preview">
+            <p>中文排版需要更大的行高（1.6-1.8）来增加可读性。字间距也需要略微调整（0.02em）。</p>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-label">辅助文字</div>
+          <div class="type-preview">
+            <small>发布于 2026年5月26日 · 阅读时间 5分钟</small>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-label">注释</div>
+          <div class="type-preview">
+            <tiny>* 必填字段 · 支持Markdown格式</tiny>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 配色 -->
+    <div class="section" id="colors">
+      <div class="section-header">
+        <h2>配色系统</h2>
+        <p>主色、辅色、强调色、语义色（克制，≤3种主色）</p>
+      </div>
+      <div class="color-grid">
+        <div class="color-card">
+          <div class="color-swatch" style="background: #1a1a1a;">
+            <span>主色</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">深灰</div>
+            <div class="color-value">#1a1a1a</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #666;">
+            <span>辅色</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">中灰</div>
+            <div class="color-value">#666</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #0d9488;">
+            <span>强调色</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">深青</div>
+            <div class="color-value">#0d9488</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #ea580c;">
+            <span>强调色</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">暖橙</div>
+            <div class="color-value">#ea580c</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #16a34a;">
+            <span>成功</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">成功绿</div>
+            <div class="color-value">#16a34a</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #d97706;">
+            <span>警告</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">警告橙</div>
+            <div class="color-value">#d97706</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #dc2626;">
+            <span>错误</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">错误红</div>
+            <div class="color-value">#dc2626</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: #2563eb;">
+            <span>信息</span>
+          </div>
+          <div class="color-info">
+            <div class="color-name">信息蓝</div>
+            <div class="color-value">#2563eb</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 按钮 -->
+    <div class="section" id="buttons">
+      <div class="section-header">
+        <h2>按钮组件</h2>
+        <p>主要、次要、危险、幽灵四种样式，三种尺寸</p>
+      </div>
+      <div class="button-grid">
+        <button class="btn btn-primary">主要按钮</button>
+        <button class="btn btn-secondary">次要按钮</button>
+        <button class="btn btn-danger">危险按钮</button>
+        <button class="btn btn-ghost">幽灵按钮</button>
+        <button class="btn btn-primary btn-sm">小号按钮</button>
+        <button class="btn btn-primary btn-lg">大号按钮</button>
+      </div>
+    </div>
+
+    <!-- 卡片 -->
+    <div class="section" id="cards">
+      <div class="section-header">
+        <h2>卡片组件</h2>
+        <p>基础卡片、数据卡片、悬停效果</p>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <h3 class="card-title">基础卡片</h3>
+          <p class="card-body">这是一个基础卡片示例，包含标题和内容。悬停时有微妙的平移和阴影效果。</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">设计原则</h3>
+          <p class="card-body">有品味：每个设计决策都有理由。有克制：少即是多。有细节：排版、字体、动画精确调优。</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">反-slop哲学</h3>
+          <p class="card-body">反对蓝紫渐变、毛玻璃、无意义的动画。追求有目的的设计，每个元素都有其存在的理由。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>统计卡片</h2>
+        <p>数据展示、趋势指示</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">进行中</div>
+          <div class="stat-value">3</div>
+          <div class="stat-change positive">↑ 1项新增</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">待处理</div>
+          <div class="stat-value">2</div>
+          <div class="stat-change negative">↓ 需关注</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已完成</div>
+          <div class="stat-value">3</div>
+          <div class="stat-change positive">↑ 2项完成</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">完成率</div>
+          <div class="stat-value">60%</div>
+          <div class="stat-change positive">↑ 10%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 徽章/标签 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>徽章/标签</h2>
+        <p>状态指示、分类标签</p>
+      </div>
+      <div class="badge-grid">
+        <span class="badge badge-success">进行中</span>
+        <span class="badge badge-warning">待处理</span>
+        <span class="badge badge-error">已取消</span>
+        <span class="badge badge-info">已完成</span>
+      </div>
+    </div>
+
+    <!-- 表单 -->
+    <div class="section" id="forms">
+      <div class="section-header">
+        <h2>表单组件</h2>
+        <p>输入框、下拉选择、文本域</p>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="demo-name">姓名</label>
+          <input type="text" id="demo-name" placeholder="请输入姓名" />
+        </div>
+        <div class="form-group">
+          <label for="demo-email">邮箱</label>
+          <input type="email" id="demo-email" placeholder="name@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="demo-dept">部门</label>
+          <select id="demo-dept">
+            <option value="">请选择部门</option>
+            <option value="tech">技术部</option>
+            <option value="sales">销售部</option>
+            <option value="market">市场部</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="demo-msg">留言</label>
+          <textarea id="demo-msg" rows="4" placeholder="请输入留言内容"></textarea>
+        </div>
+        <div class="button-grid">
+          <button class="btn btn-secondary">取消</button>
+          <button class="btn btn-primary">提交</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="section" id="tables">
+      <div class="section-header">
+        <h2>表格组件</h2>
+        <p>数据表格、悬停效果、状态标签</p>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>姓名</th>
+              <th>部门</th>
+              <th>职位</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>张三</td>
+              <td>技术部</td>
+              <td>工程师</td>
+              <td><span class="badge badge-success">在职</span></td>
+            </tr>
+            <tr>
+              <td>李四</td>
+              <td>销售部</td>
+              <td>销售经理</td>
+              <td><span class="badge badge-success">在职</span></td>
+            </tr>
+            <tr>
+              <td>王五</td>
+              <td>市场部</td>
+              <td>设计师</td>
+              <td><span class="badge badge-warning">休假</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 代码 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>使用示例</h2>
+        <p>如何在项目中使用这个设计系统</p>
+      </div>
+      <div class="code-block">
+<pre>// 1. 让Claude Code读取设计规范
+请阅读 taste-skill-zh/SKILL.md，然后按照里面的反-slop设计规范，
+帮我设计一个用户设置页面。
+
+// 2. 添加到项目
+mkdir .claude
+cp ../taste-skill-zh/SKILL.md .claude/design-system.md
+echo "设计必须遵循 .claude/design-system.md 中的反-slop规范" > CLAUDE.md
+
+// 3. 使用Tailwind CSS
+module.exports = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Noto Sans SC', 'sans-serif'],
+        serif: ['Noto Serif SC', 'serif'],
+      },
+      colors: {
+        primary: '#1a1a1a',
+        accent: '#0d9488',
+      },
+    },
+  },
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.querySelector('.theme-toggle').textContent = 
+        next === 'dark' ? '☀️ 亮色模式' : '🌙 暗色模式';
+    }
+
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.querySelector('.theme-toggle').textContent = '☀️ 亮色模式';
+    }
+  </script>
+</body>
+</html>

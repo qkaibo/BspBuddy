@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import {
-  Gift, ChevronRight, FolderOpen, Check, Plus, Globe, Mic,
+  Gift, FolderOpen, Check, Plus, Globe, Mic,
   Send, FileText, Landmark, BarChart3, Microscope, Video,
   Presentation, ClipboardList, Code, Palette, X,
 } from 'lucide-react'
 import type { ModelOption } from '../lib/types'
-import { AVAILABLE_MODELS } from '../lib/types'
+import { ModelSelector } from './ModelSelector'
 
 interface Props {
   onPrompt: (text: string) => void
@@ -14,7 +14,6 @@ interface Props {
   onSelectWorkspace?: () => void
   workspacePath?: string
   modelId?: string
-  models?: ModelOption[]
   onModelChange?: (model: ModelOption) => void
 }
 
@@ -25,13 +24,13 @@ const SCENES = [
 ]
 
 const SKILLS = [
-  { id: 'doc', label: '文档处理', icon: FileText, color: '#4f6ef7' },
-  { id: 'finance', label: '金融服务', icon: Landmark, color: '#f59e0b' },
-  { id: 'data', label: '数据分析及可视化', icon: BarChart3, color: '#22c55e' },
-  { id: 'research', label: '深度研究', icon: Microscope, color: '#a855f7' },
-  { id: 'video', label: '视频生成', icon: Video, color: '#ef4444' },
-  { id: 'slides', label: '幻灯片', icon: Presentation, color: '#ff9f0a' },
-  { id: 'pm', label: '产品管理', icon: ClipboardList, color: '#5ac8fa' },
+  { id: 'doc', label: '文档处理', icon: FileText, color: 'var(--accent)' },
+  { id: 'finance', label: '金融服务', icon: Landmark, color: 'var(--warning)' },
+  { id: 'data', label: '数据分析及可视化', icon: BarChart3, color: 'var(--success)' },
+  { id: 'research', label: '深度研究', icon: Microscope, color: 'var(--purple)' },
+  { id: 'video', label: '视频生成', icon: Video, color: 'var(--danger)' },
+  { id: 'slides', label: '幻灯片', icon: Presentation, color: 'var(--warning)' },
+  { id: 'pm', label: '产品管理', icon: ClipboardList, color: 'var(--accent)' },
 ]
 
 export function WelcomeScreen({
@@ -41,15 +40,11 @@ export function WelcomeScreen({
   onSelectWorkspace,
   workspacePath,
   modelId = 'deepseek-chat',
-  models = AVAILABLE_MODELS,
   onModelChange,
 }: Props) {
   const [activeScene, setActiveScene] = useState('office')
   const [activeSkill, setActiveSkill] = useState<string | null>(null)
   const [composerText, setComposerText] = useState('')
-  const [modelOpen, setModelOpen] = useState(false)
-
-  const currentModel = models.find((m) => m.id === modelId) || models[0]
 
   const handleSceneClick = (sceneId: string) => {
     setActiveScene(sceneId)
@@ -81,35 +76,28 @@ export function WelcomeScreen({
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '40px 24px 60px' }}>
-        {/* Top Right Promo */}
-        <div style={{
-          position: 'absolute', top: 12, right: 16,
-          display: 'flex', alignItems: 'center', gap: 4,
-          fontSize: 11, color: 'var(--text-tertiary)', cursor: 'pointer',
-          padding: '4px 8px', borderRadius: 12,
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-        }}>
-          <Gift size={13} color="#f59e0b" />
-          <span>做任务赢积分好礼</span>
-          <ChevronRight size={11} />
-        </div>
-
+    <div style={{ flex: 1, minWidth: 0, minHeight: 0, width: '100%', height: '100%', overflowY: 'auto', position: 'relative' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '48px 28px 72px' }}>
         {/* Hero Title */}
-        <div style={{ textAlign: 'center', marginBottom: 28, marginTop: 20 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32, marginTop: 24 }}>
           <h1 style={{
-            fontSize: 26, fontWeight: 700, margin: 0, marginBottom: 4,
-            letterSpacing: '-.5px', color: 'var(--text-primary)',
+            fontSize: 'var(--font-display)', fontWeight: 700, margin: 0, marginBottom: 6,
+            letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1.2,
           }}>
             BspBuddy, 我帮你
           </h1>
+          <p style={{
+            margin: 0, fontSize: 'var(--font-label)', color: 'var(--text-tertiary)',
+            letterSpacing: '0.02em',
+          }}>
+            选场景或技能，直接在下方开始
+          </p>
         </div>
 
         {/* Scene Tabs */}
         <div style={{
-          display: 'flex', justifyContent: 'center', gap: 4,
-          marginBottom: 24,
+          display: 'flex', justifyContent: 'center', gap: 6,
+          marginBottom: 28,
         }}>
           {SCENES.map((scene) => {
             const isActive = activeScene === scene.id
@@ -127,7 +115,7 @@ export function WelcomeScreen({
                   fontFamily: 'inherit',
                   background: isActive ? 'var(--text-primary)' : 'var(--bg-card)',
                   color: isActive ? 'var(--bg-root)' : 'var(--text-secondary)',
-                  transition: 'all .15s',
+                  transition: 'background .15s, border-color .15s, color .15s',
                 }}
               >
                 {Icon && <Icon size={13} />}
@@ -137,78 +125,66 @@ export function WelcomeScreen({
           })}
         </div>
 
-        {/* Skill Icon Row */}
+        {/* Skill Icon Row — unified icon tiles */}
         <div style={{
-          display: 'flex', justifyContent: 'center', gap: 8,
-          marginBottom: 24, flexWrap: 'wrap',
+          display: 'flex', justifyContent: 'center', gap: 10,
+          marginBottom: 28, flexWrap: 'wrap',
         }}>
           {SKILLS.map((skill) => {
             const isSelected = activeSkill === skill.id
             return (
               <button
                 key={skill.id}
+                type="button"
                 onClick={() => handleSkillClick(skill.id)}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  padding: '8px 10px', borderRadius: 10,
-                  border: isSelected ? `1px solid ${skill.color}` : '1px solid transparent',
-                  background: isSelected ? `${skill.color}10` : 'none',
-                  cursor: 'pointer', fontSize: 11,
-                  color: 'var(--text-secondary)',
-                  fontFamily: 'inherit', minWidth: 64,
-                  transition: 'all .15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = `${skill.color}10`
-                  e.currentTarget.style.borderColor = skill.color
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.background = 'none'
-                    e.currentTarget.style.borderColor = 'transparent'
-                  }
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                  padding: '10px 12px', borderRadius: 12,
+                  border: isSelected ? '1px solid rgba(37, 99, 235, 0.22)' : '1px solid transparent',
+                  background: isSelected ? 'var(--bg-active)' : 'transparent',
+                  cursor: 'pointer', fontSize: 'var(--font-label)',
+                  color: isSelected ? 'var(--accent)' : 'var(--text-secondary)',
+                  fontFamily: 'inherit', minWidth: 72,
+                  transition: 'background .15s, border-color .15s, color .15s',
                 }}
               >
-                <div style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  background: `${skill.color}18`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <skill.icon size={16} color={skill.color} />
-                </div>
-                <span style={{ lineHeight: 1.3, textAlign: 'center' }}>{skill.label}</span>
+                <span
+                  className={`bb-icon-tile${isSelected ? ' bb-icon-tile--active' : ''}`}
+                  style={isSelected ? undefined : { color: skill.color, borderColor: 'rgba(15,23,42,0.06)' }}
+                  aria-hidden="true"
+                >
+                  <skill.icon size={16} strokeWidth={1.75} color="currentColor" />
+                </span>
+                <span style={{ lineHeight: 1.35, textAlign: 'center', fontWeight: isSelected ? 600 : 400 }}>{skill.label}</span>
               </button>
             )
           })}
         </div>
 
-        {/* Composer Card */}
-        <div style={{
-          background: 'var(--bg-card)', borderRadius: 16,
-          border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-sm)', overflow: 'hidden',
-          marginBottom: 12,
-        }}>
+        {/* Composer Card — floating dock style */}
+        <div className="bb-composer-float" style={{ marginBottom: 16 }}>
           {/* Skill Chip */}
           {activeSkill && (
-            <div style={{ padding: '10px 16px 0' }}>
+            <div style={{ padding: '12px 16px 0' }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '3px 10px', borderRadius: 12,
-                background: '#22c55e18', color: '#22c55e',
-                fontSize: 12, fontWeight: 500, border: '1px solid #22c55e30',
+                background: 'var(--success-bg)', color: 'var(--success)',
+                fontSize: 12, fontWeight: 500, border: '1px solid rgba(22, 163, 74, 0.2)',
               }}>
                 Skill {activeSkill}
                 <button
+                  type="button"
                   onClick={() => setActiveSkill(null)}
+                  aria-label="清除技能"
                   style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     width: 16, height: 16, borderRadius: '50%',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#22c55e', padding: 0, marginLeft: 2,
+                    color: 'var(--success)', padding: 0, marginLeft: 2,
                   }}
                 >
-                  <X size={11} />
+                  <X size={11} aria-hidden="true" />
                 </button>
               </span>
             </div>
@@ -216,28 +192,32 @@ export function WelcomeScreen({
 
           {/* Textarea */}
           <textarea
+            name="welcome-composer"
+            aria-label="任务描述"
             value={composerText}
             onChange={(e) => setComposerText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="描述你的任务，BspBuddy 帮你完成..."
+            placeholder="描述你的任务，BspBuddy 帮你完成…"
             style={{
-              width: '100%', minHeight: 80, padding: '14px 16px',
+              width: '100%', minHeight: 88, padding: '16px 18px 10px',
               border: 'none', outline: 'none', resize: 'none',
               fontSize: 14, color: 'var(--text-primary)',
               background: 'transparent', fontFamily: 'inherit',
-              lineHeight: 1.6,
+              lineHeight: 1.65,
             }}
           />
 
           {/* Composer Toolbar */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '8px 16px 12px',
-            borderTop: '1px solid var(--border)',
+            padding: '8px 14px 14px',
+            boxShadow: '0 -1px 0 rgba(15, 23, 42, 0.04)',
           }}>
             {/* Left: attachment button */}
             <button
+              type="button"
               title="添加附件"
+              aria-label="添加附件"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 30, height: 30, borderRadius: 8,
@@ -247,13 +227,15 @@ export function WelcomeScreen({
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
-              <Plus size={16} />
+              <Plus size={16} aria-hidden="true" />
             </button>
 
             {/* Right: controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {/* Globe button */}
               <button
+                type="button"
+                aria-label="网络搜索"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 30, height: 30, borderRadius: 8,
@@ -263,61 +245,19 @@ export function WelcomeScreen({
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
               >
-                <Globe size={15} />
+                <Globe size={15} aria-hidden="true" />
               </button>
 
-              {/* Model Selector */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setModelOpen(!modelOpen)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    padding: '4px 10px', borderRadius: 8,
-                    background: 'var(--bg-hover)', border: '1px solid var(--border)',
-                    cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {currentModel?.name || 'Model'}
-                  <span style={{ fontSize: 9, opacity: 0.5 }}>∨</span>
-                </button>
-                {modelOpen && (
-                  <div
-                    style={{
-                      position: 'absolute', bottom: '100%', right: 0, marginBottom: 4,
-                      background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
-                      zIndex: 100, minWidth: 160, padding: '4px 0',
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {models.map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => {
-                          onModelChange?.(m)
-                          setModelOpen(false)
-                        }}
-                        style={{
-                          width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                          padding: '6px 14px', border: 'none', background: m.id === modelId ? 'var(--bg-hover)' : 'none',
-                          cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                          color: m.id === modelId ? 'var(--accent)' : 'var(--text-primary)',
-                          fontWeight: m.id === modelId ? 600 : 400,
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                        onMouseLeave={(e) => { if (m.id !== modelId) e.currentTarget.style.background = 'none' }}
-                      >
-                        <span>{m.name}</span>
-                        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{m.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* Model Selector — shared component, auto-loads tenant + local */}
+              <ModelSelector
+                selectedId={modelId}
+                onChange={onModelChange}
+              />
 
               {/* Mic button */}
               <button
+                type="button"
+                aria-label="语音输入"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 30, height: 30, borderRadius: 8,
@@ -327,23 +267,25 @@ export function WelcomeScreen({
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
               >
-                <Mic size={15} />
+                <Mic size={15} aria-hidden="true" />
               </button>
 
               {/* Send button */}
               <button
+                type="button"
                 onClick={handleSend}
                 disabled={!composerText.trim()}
+                aria-label="发送消息"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 32, height: 32, borderRadius: '50%',
                   background: composerText.trim() ? 'var(--text-primary)' : 'var(--bg-input)',
                   border: 'none', cursor: composerText.trim() ? 'pointer' : 'default',
                   color: composerText.trim() ? 'var(--bg-root)' : 'var(--text-tertiary)',
-                  padding: 0, transition: 'all .15s',
+                  padding: 0, transition: 'background .15s, color .15s',
                 }}
               >
-                <Send size={14} />
+                <Send size={14} aria-hidden="true" />
               </button>
             </div>
           </div>

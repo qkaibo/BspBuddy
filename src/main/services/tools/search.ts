@@ -40,6 +40,7 @@ const webSearchTool: Tool = {
   name: 'web_search',
   description: 'Fetch and extract text content from a web URL',
   category: 'search',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'url', type: 'string', description: 'The URL to fetch content from', required: true },
   ],

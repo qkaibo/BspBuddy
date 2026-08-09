@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义基础样式 */
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background: #fafafa;
+  color: #1a1a1a;
+  line-height: 1.6;
+}
+
+/* 自定义组件样式 */
+@layer components {
+  .btn-primary {
+    @apply bg-gray-900 text-white px-6 py-3 rounded font-medium transition-all duration-200;
+  }
+  
+  .btn-primary:hover {
+    @apply bg-gray-700;
+  }
+}
+
+/* 自定义工具类 */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

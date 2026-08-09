@@ -8,6 +8,7 @@ const wordGenerateTool: Tool = {
   name: 'word_generate',
   description: 'Generate a Word (.docx) document from markdown content. Provide the document title, content in markdown format, and optional output path.',
   category: 'office',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'title', type: 'string', description: 'Document title', required: true },
     { name: 'content', type: 'string', description: 'Document content in Markdown format', required: true },
@@ -63,6 +64,7 @@ const excelAnalyzeTool: Tool = {
   name: 'excel_analyze',
   description: 'Analyze an Excel file - read its sheets, data, and provide a summary for further processing.',
   category: 'office',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'filePath', type: 'string', description: 'Absolute path to the Excel file', required: true },
     { name: 'sheetName', type: 'string', description: 'Optional sheet name to read (default: first sheet)', required: false },
@@ -123,6 +125,7 @@ const pptCreateTool: Tool = {
   name: 'ppt_create',
   description: 'Create a PowerPoint presentation from content outline. Provide title and slides as an array of { title, content }.',
   category: 'office',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'title', type: 'string', description: 'Presentation title', required: true },
     { name: 'slides', type: 'array', description: 'Array of slide objects with title and content (markdown)', required: true },
@@ -191,6 +194,7 @@ const pdfParseTool: Tool = {
   name: 'pdf_parse',
   description: 'Basic PDF file info extraction. For full text extraction, reads raw text from PDF files.',
   category: 'office',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'filePath', type: 'string', description: 'Absolute path to the PDF file', required: true },
   ],

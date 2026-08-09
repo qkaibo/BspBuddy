@@ -3,6 +3,8 @@ import { Zap, Search as SearchIcon, Upload, Plus, ToggleLeft, ToggleRight, Trash
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { Skill, SkillSearchResult } from '../lib/skill-types'
+import { ConfirmDialog } from './ConfirmDialog'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -21,6 +23,8 @@ export function SkillMarketPanel({ onClose }: Props) {
   const [creating, setCreating] = useState(false)
   const [showSecurity, setShowSecurity] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [confirmUninstallId, setConfirmUninstallId] = useState<string | null>(null)
+  const [confirmBatchUninstall, setConfirmBatchUninstall] = useState(false)
 
   useEffect(() => {
     loadSkills()
@@ -120,14 +124,14 @@ export function SkillMarketPanel({ onClose }: Props) {
   const discoverSkills = searchResults.length > 0 ? searchResults : []
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Zap size={18} color="var(--accent)" />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>技能市场</span>
         </div>
-        <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+        <button type="button" onClick={onClose} aria-label="关闭技能市场" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
       </div>
 
       {/* Tabs */}
@@ -187,7 +191,9 @@ export function SkillMarketPanel({ onClose }: Props) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="输入任务描述，自动查找相关技能（如：我需要处理PDF）..."
+                name="skill-search"
+                aria-label="搜索技能"
+                placeholder="输入任务描述，自动查找相关技能（如：我需要处理PDF）…"
                 style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 11, color: 'var(--text-primary)', fontFamily: 'inherit' }}
               />
             </div>
@@ -222,13 +228,14 @@ export function SkillMarketPanel({ onClose }: Props) {
           </div>
           {batchMode && selectedIds.size > 0 && (
             <button
-              onClick={handleBatchUninstall}
+              type="button"
+              onClick={() => setConfirmBatchUninstall(true)}
               style={{
                 padding: '3px 10px', borderRadius: 4, border: '1px solid var(--danger)',
                 background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              <Trash2 size={11} style={{ verticalAlign: 'middle', marginRight: 2 }} />
+              <Trash2 size={11} style={{ verticalAlign: 'middle', marginRight: 2 }} aria-hidden="true" />
               批量卸载 ({selectedIds.size})
             </button>
           )}
@@ -287,13 +294,16 @@ export function SkillMarketPanel({ onClose }: Props) {
                   {!batchMode && (
                     <>
                       <button
+                        type="button"
                         onClick={() => handleToggle(skill.id, !skill.enabled)}
+                        aria-label={skill.enabled ? `禁用技能 ${skill.name}` : `启用技能 ${skill.name}`}
                         style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: skill.enabled ? 'var(--success)' : 'var(--text-tertiary)' }}
                       >
-                        {skill.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                        {skill.enabled ? <ToggleRight size={18} aria-hidden="true" /> : <ToggleLeft size={18} aria-hidden="true" />}
                       </button>
                       <button
-                        onClick={() => handleUninstall(skill.id)}
+                        type="button"
+                        onClick={() => setConfirmUninstallId(skill.id)}
                         style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}
                       >
                         卸载
@@ -310,7 +320,7 @@ export function SkillMarketPanel({ onClose }: Props) {
         {activeTab === 'discover' && (
           <>
             {searchResults.length === 0 && searchQuery && (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-tertiary)', fontSize: 12 }}>搜索中...</div>
+              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-tertiary)', fontSize: 12 }}>搜索中…</div>
             )}
             {!searchQuery && (
               <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-tertiary)', fontSize: 12 }}>
@@ -397,7 +407,7 @@ export function SkillMarketPanel({ onClose }: Props) {
                 fontFamily: 'inherit', opacity: creating || !createDesc.trim() ? 0.5 : 1,
               }}
             >
-              {creating ? '创建中...' : '创建技能'}
+              {creating ? '创建中…' : '创建技能'}
             </button>
           </div>
         )}
@@ -405,13 +415,41 @@ export function SkillMarketPanel({ onClose }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div style={{
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
           position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
           padding: '8px 16px', borderRadius: 8, background: 'var(--text-primary)', color: '#fff',
           fontSize: 12, boxShadow: 'var(--shadow-lg)', zIndex: 100,
         }}>
           {toast}
         </div>
+      )}
+      {confirmUninstallId && (
+        <ConfirmDialog
+          title="确认卸载"
+          message="卸载后将移除该技能，确定要继续吗？"
+          confirmLabel="确认卸载"
+          onConfirm={() => {
+            const id = confirmUninstallId
+            setConfirmUninstallId(null)
+            void handleUninstall(id)
+          }}
+          onCancel={() => setConfirmUninstallId(null)}
+        />
+      )}
+      {confirmBatchUninstall && (
+        <ConfirmDialog
+          title="确认批量卸载"
+          message={`将卸载已选中的 ${selectedIds.size} 个技能，此操作不可撤销。`}
+          confirmLabel="确认卸载"
+          onConfirm={() => {
+            setConfirmBatchUninstall(false)
+            void handleBatchUninstall()
+          }}
+          onCancel={() => setConfirmBatchUninstall(false)}
+        />
       )}
     </div>
   )

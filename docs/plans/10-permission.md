@@ -1,7 +1,10 @@
-# 10 — 权限与安全沙箱 (Permission Modes)
+# 10 — Agent 权限模式 / 安全沙箱 (Permission Modes)
 
-> 对应 SPEC: `specs/From-Beginner-to-Expert-Guide/Permission-Modes.md`
+> 对应 SPEC: `specs/From-Beginner-to-Expert-Guide/Permission-Modes.md`（历史溯源；实现以 `docs/` 为准）
 > Status: ❌ P3 待开发
+>
+> **范围限定：** 本文档**仅**描述 Agent Permission Modes（运行时工具沙箱：默认权限 / 完全访问）。  
+> **全产品身份、租户成员、角色（RBAC）与资源 ACL 的身份来源**见 [auth-001](../prd/auth-001-access-control.md) / [auth-01](./auth-01-access-control.md)，**勿与本 plan 混名或合并实现。**
 
 ## 功能概要
 

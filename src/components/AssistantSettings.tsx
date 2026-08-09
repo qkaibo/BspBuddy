@@ -26,6 +26,7 @@ import {
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { IMPlatform, IMConnectionStatus, PlatformConfig } from '../lib/im-types'
+import { panelRootStyle } from '../lib/panel-layout'
 import {
   IM_PLATFORMS,
   IM_PLATFORM_LABELS,
@@ -197,16 +198,18 @@ export function AssistantSettings({ onBack }: Props) {
 
   if (selectedPlatform && qrcodeData[selectedPlatform]) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)' }}>
+      <div style={panelRootStyle()}>
         <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
           <button
+            type="button"
             onClick={() => setSelectedPlatform(null)}
+            aria-label="返回"
             style={{
               padding: 4, borderRadius: 4, border: 'none', background: 'transparent',
               cursor: 'pointer', color: 'var(--text-secondary)',
             }}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} aria-hidden="true" />
           </button>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
             扫码绑定 — {IM_PLATFORM_LABELS[selectedPlatform]}
@@ -217,13 +220,13 @@ export function AssistantSettings({ onBack }: Props) {
             width: 200, height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: '2px solid var(--border)', borderRadius: 12, background: '#fff',
           }}>
-            <QrCode size={120} color="#333" />
+            <QrCode size={120} color="#333" aria-hidden="true" />
           </div>
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             请使用手机扫描二维码完成绑定
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-            二维码: {qrcodeData[selectedPlatform].slice(0, 30)}...
+            二维码: {qrcodeData[selectedPlatform].slice(0, 30)}…
           </span>
         </div>
       </div>
@@ -236,16 +239,18 @@ export function AssistantSettings({ onBack }: Props) {
     const modes = PLATFORM_CONNECTION_MODES[p]
 
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)' }}>
+      <div style={panelRootStyle()}>
         <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
           <button
+            type="button"
             onClick={() => setShowCredentials(null)}
+            aria-label="返回"
             style={{
               padding: 4, borderRadius: 4, border: 'none', background: 'transparent',
               cursor: 'pointer', color: 'var(--text-secondary)',
             }}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} aria-hidden="true" />
           </button>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
             配置凭证 — {IM_PLATFORM_LABELS[p]}
@@ -310,8 +315,7 @@ export function AssistantSettings({ onBack }: Props) {
               {connectingPlatform === p ? (
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  连接中...
-                </span>
+                  连接中…                </span>
               ) : (
                 '连接'
               )}
@@ -323,21 +327,23 @@ export function AssistantSettings({ onBack }: Props) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)', overflow: 'auto' }}>
+    <div style={panelRootStyle({ overflow: 'auto' })}>
       {/* Header */}
       <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
         {onBack && (
           <button
+            type="button"
             onClick={onBack}
+            aria-label="返回"
             style={{
               padding: 4, borderRadius: 4, border: 'none', background: 'transparent',
               cursor: 'pointer', color: 'var(--text-secondary)',
             }}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} aria-hidden="true" />
           </button>
         )}
-        <Smartphone size={18} color="var(--accent)" />
+        <Smartphone size={18} color="var(--accent)" aria-hidden="true" />
         <div>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
             远程助理设置
@@ -347,13 +353,15 @@ export function AssistantSettings({ onBack }: Props) {
           </span>
         </div>
         <button
+          type="button"
           onClick={loadStatus}
+          aria-label="刷新连接状态"
           style={{
             marginLeft: 'auto', padding: 4, borderRadius: 4, border: 'none',
             background: 'transparent', cursor: 'pointer', color: 'var(--text-tertiary)',
           }}
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -602,13 +610,18 @@ function CredField({
   onChange: (v: string) => void
   type?: string
 }) {
+  const fieldId = `cred-${label.replace(/[^\w\u4e00-\u9fff]+/g, '-').toLowerCase()}`
+  const isSecret = type === 'password'
   return (
     <div>
-      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+      <label htmlFor={fieldId} style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
         {label}
       </label>
       <input
+        id={fieldId}
+        name={fieldId}
         type={type}
+        autoComplete={isSecret ? 'new-password' : 'off'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={`请输入 ${label}`}

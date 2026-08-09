@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反-slop设计对比 - 登录页</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ===== 基础重置 ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #fafafa;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    /* ===== 对比容器 ===== */
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .comparison-title {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .comparison-title h1 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2.5rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .comparison-title p {
+      font-size: 1rem;
+      color: #666;
+    }
+
+    .version-label {
+      text-align: center;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+
+    .slop-label {
+      color: #dc2626;
+    }
+
+    .anti-label {
+      color: #16a34a;
+    }
+
+    /* ===== Slop版本 ===== */
+    .slop-version {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 600px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+    }
+
+    .slop-card {
+      backdrop-filter: blur(10px);
+      background: rgba(255, 255, 255, 0.15);
+      padding: 2.5rem;
+      border-radius: 24px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .slop-card h2 {
+      text-align: center;
+      color: #fff;
+      font-size: 1.75rem;
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+    }
+
+    .slop-card input {
+      width: 100%;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      border: none;
+      border-radius: 50px;
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .slop-card input::placeholder {
+      color: #a1a1aa;
+    }
+
+    .slop-card button {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .slop-card button:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 10px 30px rgba(240, 147, 251, 0.4);
+    }
+
+    /* ===== 反-slop版本 ===== */
+    .anti-version {
+      background: #fafafa;
+      min-height: 600px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      border: 1px solid #e5e5e5;
+    }
+
+    .anti-card {
+      padding: 2rem;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .anti-card h2 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+    }
+
+    .anti-form-group {
+      margin-bottom: 1rem;
+    }
+
+    .anti-form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .anti-form-group input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      border: 1px solid #d4d4d4;
+      border-radius: 4px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .anti-form-group input:focus {
+      outline: none;
+      border-color: #1a1a1a;
+      box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+    }
+
+    .anti-card button {
+      width: 100%;
+      padding: 0.875rem 1rem;
+      margin-top: 0.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: #fff;
+      background: #1a1a1a;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .anti-card button:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    .anti-card button:active {
+      transform: translateY(0);
+    }
+
+    .anti-links {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.875rem;
+    }
+
+    .anti-links a {
+      color: #666;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .anti-links a:hover {
+      color: #1a1a1a;
+      text-decoration: underline;
+    }
+
+    /* ===== 问题标注 ===== */
+    .issues {
+      grid-column: 1 / -1;
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+    }
+
+    .issues h3 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .issues ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .issues li {
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    .issues li.slop-item {
+      background: #fef2f2;
+      border-left: 3px solid #dc2626;
+      color: #991b1b;
+    }
+
+    .issues li.anti-item {
+      background: #f0fdf4;
+      border-left: 3px solid #16a34a;
+      color: #166534;
+    }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 768px) {
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+      
+      .issues ul {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ===== 无障碍动画 ===== */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="comparison">
+    <div class="comparison-title">
+      <h1>反-slop设计对比</h1>
+      <p>同样的登录页，左边是AI默认生成，右边是反-slop优化版本</p>
+    </div>
+
+    <!-- Slop版本 -->
+    <div>
+      <div class="version-label slop-label">❌ Slop版本（AI默认生成）</div>
+      <div class="slop-version">
+        <div class="slop-card">
+          <h2>欢迎登录</h2>
+          <input type="text" placeholder="用户名" />
+          <input type="password" placeholder="密码" />
+          <button>登录</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 反-slop版本 -->
+    <div>
+      <div class="version-label anti-label">✅ 反-slop版本（有品味）</div>
+      <div class="anti-version">
+        <div class="anti-card">
+          <h2>登录</h2>
+          <form>
+            <div class="anti-form-group">
+              <label for="username">用户名</label>
+              <input type="text" id="username" autocomplete="username" />
+            </div>
+            <div class="anti-form-group">
+              <label for="password">密码</label>
+              <input type="password" id="password" autocomplete="current-password" />
+            </div>
+            <button type="submit">登录</button>
+          </form>
+          <div class="anti-links">
+            <a href="#">忘记密码？</a>
+            <a href="#">注册账号</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 问题标注 -->
+    <div class="issues">
+      <h3>设计差异对比</h3>
+      <ul>
+        <li class="slop-item">❌ 蓝紫渐变背景，太通俗</li>
+        <li class="anti-item">✅ 浅灰背景（#fafafa），简洁</li>
+        <li class="slop-item">❌ 毛玻璃卡片（backdrop-filter），性能差</li>
+        <li class="anti-item">✅ 白色卡片 + 细边框，清晰</li>
+        <li class="slop-item">❌ 大圆角（24px），过于圆润</li>
+        <li class="anti-item">✅ 小圆角（4px），克制</li>
+        <li class="slop-item">❌ 胶囊输入框（border-radius: 50px）</li>
+        <li class="anti-item">✅ 方角输入框，专业</li>
+        <li class="slop-item">❌ 粉紫渐变按钮，太鲜艳</li>
+        <li class="anti-item">✅ 黑色按钮，对比强</li>
+        <li class="slop-item">❌ 默认字体（System UI）</li>
+        <li class="anti-item">✅ 中文衬线标题 + 无衬线正文</li>
+        <li class="slop-item">❌ 弹跳动画（transform + scale）</li>
+        <li class="anti-item">✅ 微妙上移（translateY(-1px)）</li>
+        <li class="slop-item">❌ 无标签，只有placeholder</li>
+        <li class="anti-item">✅ 有标签，无障碍友好</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

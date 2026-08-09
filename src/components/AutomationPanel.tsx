@@ -14,6 +14,7 @@ import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS, AVAILABLE_MODELS } from '../lib/types'
 import type { AutomationTask, AutomationLog, AutomationConfig, AutomationTemplate } from '../lib/automation-types'
 import { AUTOMATION_TEMPLATES, SAFETY_RULES, CONCURRENCY_LIMITS } from '../lib/automation-types'
+import { ConfirmDialog } from './ConfirmDialog'
 
 const ipc = createIpcClient()
 
@@ -66,6 +67,7 @@ export function AutomationPanel({ onClose }: Props) {
   const [logs, setLogs] = useState<AutomationLog[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Wizard state
   const [wizardStep, setWizardStep] = useState<WizardStep>('template')
@@ -326,35 +328,43 @@ export function AutomationPanel({ onClose }: Props) {
         </div>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <button
+            type="button"
             className="p-1.5 rounded hover:bg-accent transition-colors"
             onClick={() => handleTrigger(task.id)}
             title="试运行"
+            aria-label="试运行"
           >
-            <Play className="w-3.5 h-3.5 text-primary" />
+            <Play className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
           </button>
           <button
+            type="button"
             className="p-1.5 rounded hover:bg-accent transition-colors"
             onClick={() => startEdit(task)}
             title="编辑"
+            aria-label="编辑任务"
           >
-            <Settings className="w-3.5 h-3.5 text-muted-foreground" />
+            <Settings className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           </button>
           <button
+            type="button"
             className="p-1.5 rounded hover:bg-accent transition-colors"
             onClick={() => handleToggle(task.id, !task.enabled)}
             title={task.enabled ? '暂停' : '启用'}
+            aria-label={task.enabled ? '暂停任务' : '启用任务'}
           >
             {task.enabled
-              ? <Pause className="w-3.5 h-3.5 text-muted-foreground" />
-              : <Play className="w-3.5 h-3.5 text-muted-foreground" />
+              ? <Pause className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+              : <Play className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
             }
           </button>
           <button
+            type="button"
             className="p-1.5 rounded hover:bg-red-500/10 transition-colors"
-            onClick={() => handleDelete(task.id)}
+            onClick={() => setConfirmDeleteId(task.id)}
             title="删除"
+            aria-label="删除任务"
           >
-            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            <Trash2 className="w-3.5 h-3.5 text-red-400" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -404,7 +414,7 @@ export function AutomationPanel({ onClose }: Props) {
               <button
                 key={template.id}
                 className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border
-                           hover:border-primary/50 hover:bg-secondary/30 transition-all text-left"
+                           hover:border-primary/50 hover:bg-secondary/30 transition-colors text-left"
                 onClick={() => selectTemplate(template)}
               >
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"
@@ -445,10 +455,12 @@ export function AutomationPanel({ onClose }: Props) {
       case 'name':
         return (
           <div className="flex-1 flex flex-col p-4">
-            <label className="text-xs font-medium mb-2 text-muted-foreground">任务名称</label>
+            <label htmlFor="automation-task-name" className="text-xs font-medium mb-2 text-muted-foreground">任务名称</label>
             <input
+              id="automation-task-name"
+              name="automation-task-name"
               className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm
-                         focus:outline-none focus:border-primary transition-colors"
+                         focus-visible:outline-none focus-visible:border-primary transition-colors"
               placeholder="例如：每日AI新闻推送"
               value={wizardValues.name || ''}
               onChange={(e) => setWizardValues((p) => ({ ...p, name: e.target.value }))}
@@ -460,16 +472,18 @@ export function AutomationPanel({ onClose }: Props) {
       case 'workspace':
         return (
           <div className="flex-1 flex flex-col p-4">
-            <label className="text-xs font-medium mb-2 text-muted-foreground">工作空间路径</label>
+            <label htmlFor="automation-workspace" className="text-xs font-medium mb-2 text-muted-foreground">工作空间路径</label>
             <input
+              id="automation-workspace"
+              name="automation-workspace"
               className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm
-                         focus:outline-none focus:border-primary transition-colors"
+                         focus-visible:outline-none focus-visible:border-primary transition-colors"
               placeholder="留空自动分配 automation-xxxx 工作空间"
               value={wizardValues.workspacePath || ''}
               onChange={(e) => setWizardValues((p) => ({ ...p, workspacePath: e.target.value }))}
             />
             <div className="mt-2 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-start gap-2">
-              <Info className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <Info className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" aria-hidden="true" />
               <p className="text-[10px] text-blue-400">
                 任务仅在指定工作目录内进行文件读写，无法访问其他目录。
                 留空则自动创建专用工作空间。
@@ -480,11 +494,13 @@ export function AutomationPanel({ onClose }: Props) {
       case 'prompt':
         return (
           <div className="flex-1 flex flex-col p-4">
-            <label className="text-xs font-medium mb-2 text-muted-foreground">提示词 (Prompt)</label>
+            <label htmlFor="automation-prompt" className="text-xs font-medium mb-2 text-muted-foreground">提示词 (Prompt)</label>
             <textarea
+              id="automation-prompt"
+              name="automation-prompt"
               className="flex-1 w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm
-                         focus:outline-none focus:border-primary transition-colors resize-none font-mono"
-              placeholder="输入自动化任务的目标和输出要求..."
+                         focus-visible:outline-none focus-visible:border-primary transition-colors resize-none font-mono"
+              placeholder="输入自动化任务的目标和输出要求…"
               value={wizardValues.prompt || ''}
               onChange={(e) => setWizardValues((p) => ({ ...p, prompt: e.target.value }))}
               rows={8}
@@ -502,11 +518,13 @@ export function AutomationPanel({ onClose }: Props) {
       case 'model':
         return (
           <div className="flex-1 flex flex-col p-4 overflow-y-auto">
-            <label className="text-xs font-medium mb-2 text-muted-foreground">选择模型</label>
-            <div className="space-y-2">
+            <span className="text-xs font-medium mb-2 text-muted-foreground" id="automation-model-label">选择模型</span>
+            <div className="space-y-2" role="group" aria-labelledby="automation-model-label">
               {AVAILABLE_MODELS.map((model) => (
                 <button
+                  type="button"
                   key={model.id}
+                  aria-pressed={wizardValues.modelId === model.id}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     wizardValues.modelId === model.id
                       ? 'border-primary bg-primary/5'
@@ -528,11 +546,13 @@ export function AutomationPanel({ onClose }: Props) {
       case 'schedule':
         return (
           <div className="flex-1 flex flex-col p-4 overflow-y-auto">
-            <label className="text-xs font-medium mb-2 text-muted-foreground">执行频率</label>
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <span className="text-xs font-medium mb-2 text-muted-foreground" id="automation-freq-label">执行频率</span>
+            <div className="grid grid-cols-3 gap-2 mb-4" role="group" aria-labelledby="automation-freq-label">
               {Object.entries(FREQUENCY_LABELS).filter(([k]) => k !== 'custom').map(([key, label]) => (
                 <button
+                  type="button"
                   key={key}
+                  aria-pressed={wizardValues.schedule?.frequency === key}
                   className={`px-3 py-2 rounded-lg text-xs border transition-colors ${
                     wizardValues.schedule?.frequency === key
                       ? 'border-primary bg-primary/5 text-primary'
@@ -547,10 +567,12 @@ export function AutomationPanel({ onClose }: Props) {
                 </button>
               ))}
             </div>
-            <label className="text-xs font-medium mb-2 text-muted-foreground">Cron 表达式 (可选)</label>
+            <label htmlFor="automation-cron" className="text-xs font-medium mb-2 text-muted-foreground">Cron 表达式 (可选)</label>
             <input
+              id="automation-cron"
+              name="automation-cron"
               className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm font-mono
-                         focus:outline-none focus:border-primary transition-colors"
+                         focus-visible:outline-none focus-visible:border-primary transition-colors"
               placeholder="0 9 * * *"
               value={wizardValues.schedule?.cron || ''}
               onChange={(e) => setWizardValues((p) => ({
@@ -560,11 +582,13 @@ export function AutomationPanel({ onClose }: Props) {
             />
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div>
-                <label className="text-[10px] text-muted-foreground">开始日期</label>
+                <label htmlFor="automation-start-date" className="text-[10px] text-muted-foreground">开始日期</label>
                 <input
+                  id="automation-start-date"
+                  name="automation-start-date"
                   type="date"
                   className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-sm
-                             focus:outline-none focus:border-primary transition-colors"
+                             focus-visible:outline-none focus-visible:border-primary transition-colors"
                   value={wizardValues.schedule?.startDate || ''}
                   onChange={(e) => setWizardValues((p) => ({
                     ...p,
@@ -573,11 +597,13 @@ export function AutomationPanel({ onClose }: Props) {
                 />
               </div>
               <div>
-                <label className="text-[10px] text-muted-foreground">截止日期 (可选)</label>
+                <label htmlFor="automation-end-date" className="text-[10px] text-muted-foreground">截止日期 (可选)</label>
                 <input
+                  id="automation-end-date"
+                  name="automation-end-date"
                   type="date"
                   className="w-full mt-1 px-3 py-2 rounded-lg bg-secondary border border-border text-sm
-                             focus:outline-none focus:border-primary transition-colors"
+                             focus-visible:outline-none focus-visible:border-primary transition-colors"
                   value={wizardValues.schedule?.endDate || ''}
                   onChange={(e) => setWizardValues((p) => ({
                     ...p,
@@ -601,8 +627,12 @@ export function AutomationPanel({ onClose }: Props) {
       case 'push':
         return (
           <div className="flex-1 flex flex-col p-4">
-            <label className="text-xs font-medium mb-3 text-muted-foreground">推送到 BspBuddy 小程序</label>
+            <span className="text-xs font-medium mb-3 text-muted-foreground" id="automation-push-label">推送到 BspBuddy 小程序</span>
             <button
+              type="button"
+              role="switch"
+              aria-checked={!!wizardValues.pushToMiniProgram}
+              aria-labelledby="automation-push-label"
               className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
                 wizardValues.pushToMiniProgram
                   ? 'border-primary bg-primary/5'
@@ -685,14 +715,16 @@ export function AutomationPanel({ onClose }: Props) {
               <p className="text-[10px] text-muted-foreground">{taskLogs.length} 条记录</p>
             </div>
             <button
+              type="button"
               className="p-1 rounded hover:bg-accent transition-colors"
               onClick={() => {
                 setViewMode('list')
                 setSelectedLog(null)
               }}
               title="返回列表"
+              aria-label="返回列表"
             >
-              <X className="w-4 h-4 text-muted-foreground" />
+              <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -911,7 +943,7 @@ export function AutomationPanel({ onClose }: Props) {
 
   // ── Main render ──
   return (
-    <div className="flex flex-col h-full bg-background relative">
+    <div className="flex flex-col flex-1 min-w-0 min-h-0 w-full h-full bg-background relative">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -921,11 +953,13 @@ export function AutomationPanel({ onClose }: Props) {
           <h1 className="text-sm font-semibold">自动化</h1>
         </div>
         <button
+          type="button"
           className="p-1.5 rounded-md hover:bg-accent transition-colors"
           onClick={onClose}
           title="关闭"
+          aria-label="关闭自动化面板"
         >
-          <X className="w-4 h-4 text-muted-foreground" />
+          <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
         </button>
       </div>
 
@@ -940,10 +974,26 @@ export function AutomationPanel({ onClose }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-foreground text-background text-sm shadow-lg
-                        animate-slide-up z-50">
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-foreground text-background text-sm shadow-lg
+                        animate-slide-up z-50"
+        >
           {toast}
         </div>
+      )}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="确认删除任务"
+          message="删除后该自动化任务及其运行记录将不可恢复，确定要删除吗？"
+          onConfirm={() => {
+            const id = confirmDeleteId
+            setConfirmDeleteId(null)
+            void handleDelete(id)
+          }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
       )}
     </div>
   )

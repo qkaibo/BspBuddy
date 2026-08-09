@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { ArrowLeft, Check, Coins, Plus } from 'lucide-react'
 import { PRICING_PLANS, TOPUP_PACKS } from '../lib/types'
 import type { BspPlan } from '../lib/types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 interface Props {
   currentPlan?: BspPlan
@@ -43,13 +44,13 @@ export function PricingPanel({ currentPlan = 'free', onClose }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       <div style={{
         height: 44, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px',
         background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <button onClick={onClose} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4 }}>
-          <ArrowLeft size={16} color="var(--text-secondary)" />
+        <button type="button" onClick={onClose} aria-label="返回" style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4 }}>
+          <ArrowLeft size={16} color="var(--text-secondary)" aria-hidden="true" />
         </button>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>套餐选择</span>
       </div>

@@ -59,23 +59,25 @@ export function ResultPanel({ artifacts, workspacePath, visible, onToggle, chang
                   color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
                   fontWeight: isActive ? 600 : 400,
                   fontFamily: 'inherit',
-                  transition: 'all .15s',
+                  transition: 'color .15s, border-color .15s',
                 }}
               >
-                <tab.icon size={13} />
+                <tab.icon size={13} aria-hidden="true" />
                 {tab.label}
               </button>
             )
           })}
         </div>
         <button
+          type="button"
           onClick={onToggle}
+          aria-label="关闭结果面板"
           style={{
             padding: 8, border: 'none', background: 'none', cursor: 'pointer',
             color: 'var(--text-secondary)', display: 'flex',
           }}
         >
-          <X size={14} />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 

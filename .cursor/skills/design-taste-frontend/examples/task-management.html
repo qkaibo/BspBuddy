@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务管理 - 反-slop设计</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #fafafa;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    /* 导航 */
+    .navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: #fff;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .nav-brand {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .nav-links a {
+      font-size: 1rem;
+      color: #666;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: #1a1a1a; }
+
+    .nav-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      background: #e5e5e5;
+    }
+
+    /* 主内容 */
+    .main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 2rem;
+    }
+
+    /* 页面标题 */
+    .page-header {
+      margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2.5rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .page-header p {
+      font-size: 1rem;
+      color: #666;
+    }
+
+    /* 统计卡片 */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      padding: 1.5rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-change {
+      font-size: 0.875rem;
+    }
+
+    .stat-change.positive { color: #16a34a; }
+    .stat-change.negative { color: #dc2626; }
+
+    /* 任务列表 */
+    .section-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .task-list {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+    }
+
+    .task-header {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      padding: 0.75rem 1rem;
+      background: #fafafa;
+      border-bottom: 2px solid #e5e5e5;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #666;
+    }
+
+    .task-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      padding: 1rem;
+      border-bottom: 1px solid #e5e5e5;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+
+    .task-row:last-child { border-bottom: none; }
+    .task-row:hover { background: #fafafa; }
+
+    .task-name { font-weight: 500; }
+
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.875rem;
+      border-radius: 4px;
+    }
+
+    .status.active { background: #f0fdf4; color: #166534; }
+    .status.pending { background: #fef9c3; color: #854d0e; }
+    .status.completed { background: #eff6ff; color: #1e40af; }
+
+    .priority {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .priority.high { color: #dc2626; }
+    .priority.medium { color: #d97706; }
+    .priority.low { color: #666; }
+
+    /* 新任务按钮 */
+    .new-task-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: #fff;
+      background: #1a1a1a;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .new-task-btn:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    .new-task-btn:active { transform: translateY(0); }
+
+    /* 新任务表单 */
+    .new-task-form {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      border: 1px solid #d4d4d4;
+      border-radius: 4px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #1a1a1a;
+      box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .btn-secondary {
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: #1a1a1a;
+      background: #fff;
+      border: 1px solid #d4d4d4;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-secondary:hover { background: #fafafa; border-color: #1a1a1a; }
+
+    .btn-primary {
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: #fff;
+      background: #1a1a1a;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:hover { background: #333; }
+
+    @media (max-width: 768px) {
+      .stats { grid-template-columns: 1fr; }
+      .task-header, .task-row { grid-template-columns: 2fr 1fr; }
+      .task-header .col-3, .task-header .col-4,
+      .task-row .col-3, .task-row .col-4 { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航 -->
+  <nav class="navbar">
+    <div class="nav-brand">任务管理</div>
+    <div class="nav-links">
+      <a href="#">概览</a>
+      <a href="#">项目</a>
+      <a href="#">团队</a>
+      <a href="#">报告</a>
+    </div>
+    <div class="nav-avatar"></div>
+  </nav>
+
+  <!-- 主内容 -->
+  <div class="main">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1>今日任务</h1>
+      <p>2026年5月26日 · 周二 · 8项任务</p>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">进行中</div>
+        <div class="stat-value">3</div>
+        <div class="stat-change positive">↑ 1项新增</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">待处理</div>
+        <div class="stat-value">2</div>
+        <div class="stat-change negative">↓ 需关注</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">已完成</div>
+        <div class="stat-value">3</div>
+        <div class="stat-change positive">↑ 2项完成</div>
+      </div>
+    </div>
+
+    <!-- 任务列表 -->
+    <h2 class="section-title">任务列表</h2>
+    <div class="task-list">
+      <div class="task-header">
+        <div>任务名称</div>
+        <div>状态</div>
+        <div class="col-3">优先级</div>
+        <div class="col-4">截止日期</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">完成产品需求文档</div>
+        <div><span class="status active">进行中</span></div>
+        <div class="col-3"><span class="priority high">高</span></div>
+        <div class="col-4">5月28日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">设计新版登录页</div>
+        <div><span class="status active">进行中</span></div>
+        <div class="col-3"><span class="priority high">高</span></div>
+        <div class="col-4">5月27日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">编写API接口文档</div>
+        <div><span class="status active">进行中</span></div>
+        <div class="col-3"><span class="priority medium">中</span></div>
+        <div class="col-4">5月30日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">修复移动端样式问题</div>
+        <div><span class="status pending">待处理</span></div>
+        <div class="col-3"><span class="priority medium">中</span></div>
+        <div class="col-4">5月29日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">更新用户隐私政策</div>
+        <div><span class="status pending">待处理</span></div>
+        <div class="col-3"><span class="priority low">低</span></div>
+        <div class="col-4">6月1日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">部署测试环境</div>
+        <div><span class="status completed">已完成</span></div>
+        <div class="col-3"><span class="priority high">高</span></div>
+        <div class="col-4">5月26日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">提交周报</div>
+        <div><span class="status completed">已完成</span></div>
+        <div class="col-3"><span class="priority low">低</span></div>
+        <div class="col-4">5月26日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">整理会议纪要</div>
+        <div><span class="status completed">已完成</span></div>
+        <div class="col-3"><span class="priority low">低</span></div>
+        <div class="col-4">5月26日</div>
+      </div>
+    </div>
+
+    <button class="new-task-btn">+ 新建任务</button>
+
+    <!-- 新任务表单 -->
+    <div class="new-task-form">
+      <h3 class="section-title">创建新任务</h3>
+      <div class="form-group">
+        <label for="task-name">任务名称</label>
+        <input type="text" id="task-name" placeholder="请输入任务名称" />
+      </div>
+      <div class="form-group">
+        <label for="task-priority">优先级</label>
+        <select id="task-priority">
+          <option value="">请选择优先级</option>
+          <option value="high">高</option>
+          <option value="medium">中</option>
+          <option value="low">低</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="task-date">截止日期</label>
+        <input type="date" id="task-date" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-secondary">取消</button>
+        <button class="btn-primary">创建任务</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

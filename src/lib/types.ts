@@ -73,6 +73,7 @@ export interface Tool {
   description: string
   category: ToolCategory
   parameters: ToolParameter[]
+  modes?: AgentMode[] // 工具可用模式：undefined = 全模式可用，[] = 不可用，['craft','plan'] = 仅指定模式
   execute: (params: Record<string, unknown>) => Promise<ToolResult>
 }
 
@@ -160,6 +161,17 @@ export const IPC_CHANNELS = {
   SESSION_LOAD: 'session:load',
   SESSION_LIST: 'session:list',
   SESSION_DELETE: 'session:delete',
+  // Auth / RBAC (auth-001) — identity session; NOT Agent Permission Modes
+  AUTH_LOGIN: 'auth:login',
+  AUTH_LOGOUT: 'auth:logout',
+  AUTH_ME: 'auth:me',
+  AUTH_USERS_LIST: 'auth:users:list',
+  AUTH_USERS_CREATE: 'auth:users:create',
+  AUTH_USERS_UPDATE: 'auth:users:update',
+  AUTH_USERS_DELETE: 'auth:users:delete',
+  /** Phase 1 desktop: switch simulated local user */
+  AUTH_SWITCH_USER: 'auth:switch-user',
+  AUTH_MEMBERS_FOR_SWITCH: 'auth:members-for-switch',
   // Plugin ecosystem
   SKILL_LIST: 'skill:list',
   SKILL_SEARCH: 'skill:search',
@@ -169,6 +181,7 @@ export const IPC_CHANNELS = {
   SKILL_BATCH_UNINSTALL: 'skill:batch-uninstall',
   SKILL_CREATE: 'skill:create',
   SKILL_UPLOAD: 'skill:upload',
+  SKILL_UPDATE: 'skill:update',
   MCP_LIST: 'mcp:list',
   MCP_CONNECT: 'mcp:connect',
   MCP_DISCONNECT: 'mcp:disconnect',
@@ -186,6 +199,8 @@ export const IPC_CHANNELS = {
   EXPERT_SQUARE_LIST: 'expert:square-list',
   EXPERT_CLONE: 'expert:clone',
   EXPERT_TEST_RUN: 'expert:test-run',
+  EXPERT_AUTH_TOKEN: 'expert:auth-token',
+  EXPERT_FASTAPI_STATUS: 'expert:fastapi-status',
   PLUGIN_INSTALL: 'plugin:install',
   PLUGIN_UNINSTALL: 'plugin:uninstall',
   PLUGIN_LIST: 'plugin:list',
@@ -270,6 +285,7 @@ export const IPC_CHANNELS = {
   MEMORY_SEARCH_HISTORY: 'memory:search:history',
   MEMORY_IMPORT_PROMPT: 'memory:import-prompt',
   MEMORY_GET_CONTEXT: 'memory:get-context',
+  MEMORY_EXTRACT: 'memory:extract',
   // Credits & Pricing
   CREDITS_BALANCE: 'credits:balance',
   CREDITS_CONSUME: 'credits:consume',
@@ -319,17 +335,51 @@ export const IPC_CHANNELS = {
   CONNECTOR_CONNECT: 'connector:connect',
   CONNECTOR_DISCONNECT: 'connector:disconnect',
   CONNECTOR_STATUS: 'connector:status',
-  // SOP Skills
+  // SOP Skills (library + lifecycle — agents-003)
   SOP_LIST: 'sop:list',
+  SOP_GET: 'sop:get',
   SOP_CREATE: 'sop:create',
+  SOP_UPDATE: 'sop:update',
   SOP_DELETE: 'sop:delete',
+  SOP_PUBLISH: 'sop:publish',
+  SOP_DRAFT: 'sop:draft',
+  SOP_ARCHIVE: 'sop:archive',
+  SOP_VERSIONS: 'sop:versions',
+  SOP_ROLLBACK: 'sop:rollback',
+  SOP_DELETE_VERSION: 'sop:delete-version',
+  SOP_SQUARE_LIST: 'sop:square-list',
+  SOP_CLONE_FROM_SQUARE: 'sop:clone-from-square',
+  /** MVP mock distill — real SSE pipeline TODO */
+  SOP_DISTILL: 'sop:distill',
   // Knowledge Base
   KNOWLEDGE_LIST: 'knowledge:list',
   KNOWLEDGE_CREATE: 'knowledge:create',
   KNOWLEDGE_DELETE: 'knowledge:delete',
+  // General Skills & Resource Import
+  GENERAL_SKILL_LIST: 'general-skill:list',
+  RESOURCE_IMPORT: 'resource:import',
+  RESOURCE_UNBIND: 'resource:unbind',
   // Feedback
   FEEDBACK_SUMMARY: 'feedback:summary',
   FEEDBACK_LIST: 'feedback:list',
+  // Model Config
+  MODEL_CONFIG_LIST: 'model-config:list',
+  MODEL_CONFIG_CREATE: 'model-config:create',
+  MODEL_CONFIG_UPDATE: 'model-config:update',
+  MODEL_CONFIG_SET_DEFAULT: 'model-config:set-default',
+  MODEL_CONFIG_TEST: 'model-config:test',
+  MODEL_CONFIG_PROTOCOLS: 'model-config:protocols',
+  // Local-only model configs (仅本机保存)
+  MODEL_CONFIG_LOCAL_LIST: 'model-config-local:list',
+  MODEL_CONFIG_LOCAL_SAVE: 'model-config-local:save',
+  MODEL_CONFIG_LOCAL_UPDATE: 'model-config-local:update',
+  MODEL_CONFIG_LOCAL_DELETE: 'model-config-local:delete',
+  MODEL_CONFIG_LOCAL_TEST: 'model-config-local:test',
+  EXPERT_MODEL_CATALOG_LIST: 'expert-model-catalog:list',
+  EXPERT_MODEL_CATALOG_CREATE: 'expert-model-catalog:create',
+  EXPERT_MODEL_CATALOG_UPDATE: 'expert-model-catalog:update',
+  EXPERT_MODEL_CATALOG_DELETE: 'expert-model-catalog:delete',
+  EXPERT_MODEL_CATALOG_TEST: 'expert-model-catalog:test',
 } as const
 
 // ---------- Agent mode ----------
@@ -341,6 +391,7 @@ export interface ModelOption {
   name: string
   provider: string
   description: string
+  source?: 'local' | 'cloud'
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
@@ -350,6 +401,84 @@ export const AVAILABLE_MODELS: ModelOption[] = [
   { id: 'kimi', name: 'Kimi', provider: 'moonshot', description: '截图分析、图片转文档等视觉类任务' },
   { id: 'minimax', name: 'MiniMax', provider: 'minimax', description: 'Excel处理、数据分析、PPT生成，执行速度快' },
 ]
+
+// ---------- Model Config (backend-managed) ----------
+export type ModelTrustStatus = 'unverified' | 'verified' | 'legacy_trusted'
+export type ModelVerificationStatus = 'verifying' | 'succeeded' | 'failed' | null
+
+export interface ModelConfigItem {
+  id: string
+  tenant_id: string
+  name: string
+  provider: string
+  api_protocol: string
+  base_url: string | null
+  api_key_masked: string
+  model: string
+  temperature: number
+  max_output_tokens: number
+  extra_body: Record<string, unknown>
+  protocol_options: Record<string, unknown>
+  legacy_unmapped_options: Record<string, unknown>
+  trust_status: ModelTrustStatus
+  verification_attempt_status: ModelVerificationStatus
+  config_revision: number
+  security_revision: number
+  is_default: boolean
+  enabled: boolean
+  storage_mode: string
+  scope: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ModelConfigCreateParams {
+  name: string
+  api_protocol: string
+  base_url: string
+  api_key: string
+  model: string
+  temperature?: number
+  max_output_tokens?: number
+  protocol_options?: Record<string, unknown>
+  extra_body?: Record<string, unknown>
+  storage_mode?: string
+  scope?: string
+}
+
+export interface ModelConfigUpdateParams {
+  name?: string
+  api_protocol?: string
+  base_url?: string
+  api_key?: string
+  model?: string
+  temperature?: number
+  max_output_tokens?: number
+  enabled?: boolean
+  is_default?: boolean
+  protocol_options?: Record<string, unknown>
+  extra_body?: Record<string, unknown>
+  storage_mode?: string
+  scope?: string
+}
+
+export interface ModelCapabilityResult {
+  id: string
+  success: boolean
+  error_code?: string
+}
+
+export interface ModelConfigTestResult {
+  success: boolean
+  message: string
+  output: string | null
+  attempt_id: string
+  trust_status: ModelTrustStatus
+  attempt_status: ModelVerificationStatus
+  capabilities: ModelCapabilityResult[]
+  activated?: boolean
+  model?: ModelConfigItem
+}
 
 // ---------- Office ----------
 export interface OfficeArtifact {

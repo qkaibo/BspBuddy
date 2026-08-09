@@ -30,6 +30,8 @@ body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   overflow: hidden;
+  touch-action: manipulation;
+  color-scheme: dark;
 }
 
 ::-webkit-scrollbar {
@@ -58,15 +60,15 @@ body {
 
   .btn-primary {
     @apply bg-primary text-primary-foreground px-4 py-2 rounded-md
-           hover:opacity-90 transition-all duration-200
+           hover:opacity-90 transition-opacity duration-200
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .input-area {
     @apply w-full bg-secondary border border-border rounded-md px-3 py-2
            text-foreground placeholder-muted-foreground
-           focus:outline-none focus:ring-2 focus:ring-primary/50
-           transition-all duration-200;
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
+           transition-[box-shadow,border-color] duration-200;
   }
 }
 
@@ -95,5 +97,20 @@ body {
   }
   50% {
     opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-pulse-slow,
+  .animate-slide-up {
+    animation: none !important;
   }
 }

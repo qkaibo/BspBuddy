@@ -1,4 +1,5 @@
 import type { Tool, ToolResult, FunctionDefinition } from '../../../lib/types'
+import type { AgentMode } from '../../../lib/types'
 
 class ToolRegistry {
   private tools: Map<string, Tool> = new Map()
@@ -31,8 +32,14 @@ class ToolRegistry {
     }
   }
 
-  toFunctionDefinitions(): FunctionDefinition[] {
-    return this.list().map((tool) => ({
+  toFunctionDefinitions(mode?: AgentMode): FunctionDefinition[] {
+    const filtered = this.list().filter((tool) => {
+      if (!tool.modes) return true // 未指定 modes = 全模式可用
+      if (tool.modes.length === 0) return false // modes=[] = 不可用
+      if (!mode) return true // 无 mode 参数 = 返回全量
+      return tool.modes.includes(mode) // 按 mode 过滤
+    })
+    return filtered.map((tool) => ({
       name: tool.name,
       description: tool.description,
       parameters: {

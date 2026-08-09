@@ -4,6 +4,7 @@ import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { McpServer, McpMarketEntry } from '../lib/mcp-types'
 import type { McpServerConfig } from '../lib/plugin-types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -103,14 +104,14 @@ export function MCPConfigPanel({ onClose, workspacePath }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Server size={18} color="var(--accent)" />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>MCP 配置</span>
         </div>
-        <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+        <button type="button" onClick={onClose} aria-label="关闭 MCP 配置" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
       </div>
 
       {/* Tabs */}
@@ -209,13 +210,16 @@ export function MCPConfigPanel({ onClose, workspacePath }: Props) {
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); handleDisconnect(server.id) }}
+                      title="断开连接"
+                      aria-label={`断开 ${server.name || server.id}`}
                       style={{
                         padding: '3px 8px', borderRadius: 4, border: '1px solid var(--danger)',
                         background: 'transparent', color: 'var(--danger)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >
-                      <Trash2 size={11} style={{ verticalAlign: 'middle' }} />
+                      <Trash2 size={11} style={{ verticalAlign: 'middle' }} aria-hidden="true" />
                     </button>
                     <ChevronRight size={14} color="var(--text-tertiary)" style={{
                       transform: expandedServer === server.id ? 'rotate(90deg)' : 'none',
@@ -342,14 +346,19 @@ export function MCPConfigPanel({ onClose, workspacePath }: Props) {
                 {showEnvForm === entry.id && (
                   <div style={{ marginTop: 10, padding: '10px', borderRadius: 6, background: 'var(--bg-input)' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>配置环境变量</div>
-                    {entry.envSchema.map((schema) => (
+                    {entry.envSchema.map((schema) => {
+                      const fieldId = `mcp-env-${entry.id}-${schema.key}`
+                      return (
                       <div key={schema.key} style={{ marginBottom: 6 }}>
-                        <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>
+                        <label htmlFor={fieldId} style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>
                           {schema.label} {schema.required && <span style={{ color: 'var(--danger)' }}>*</span>}
-                          {schema.secret && <Shield size={9} color="var(--warning)" style={{ marginLeft: 4 }} />}
+                          {schema.secret && <Shield size={9} color="var(--warning)" style={{ marginLeft: 4 }} aria-hidden="true" />}
                         </label>
                         <input
+                          id={fieldId}
+                          name={fieldId}
                           type={schema.secret ? 'password' : 'text'}
+                          autoComplete={schema.secret ? 'off' : 'off'}
                           value={envValues[schema.key] || ''}
                           onChange={(e) => setEnvValues((p) => ({ ...p, [schema.key]: e.target.value }))}
                           placeholder={schema.description}
@@ -359,7 +368,8 @@ export function MCPConfigPanel({ onClose, workspacePath }: Props) {
                           }}
                         />
                       </div>
-                    ))}
+                      )
+                    })}
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       <button
                         onClick={() => confirmMarketInstall(entry)}
@@ -393,7 +403,13 @@ export function MCPConfigPanel({ onClose, workspacePath }: Props) {
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>
               粘贴MCP服务器配置（JSON格式）。配置将保存到 {configLevel === 'user' ? '~/.workbuddy/mcp.json' : '项目/.workbuddy/mcp.json'}
             </div>
+            <label htmlFor="mcp-raw-config" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>
+              MCP 配置 JSON
+            </label>
             <textarea
+              id="mcp-raw-config"
+              name="mcp-raw-config"
+              aria-label="MCP 配置 JSON"
               value={rawConfig}
               onChange={(e) => setRawConfig(e.target.value)}
               placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "command": "uvx",\n      "args": ["server-package"],\n      "env": {\n        "API_KEY": "your-key"\n      }\n    }\n  }\n}`}
@@ -444,7 +460,10 @@ export function MCPConfigPanel({ onClose, workspacePath }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div style={{
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
           position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
           padding: '8px 16px', borderRadius: 8, background: 'var(--text-primary)', color: '#fff',
           fontSize: 12, boxShadow: 'var(--shadow-lg)', zIndex: 100,

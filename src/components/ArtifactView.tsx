@@ -90,13 +90,13 @@ export function ArtifactView({ artifacts, workspacePath, onPreviewInBrowser }: P
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {a.mimeType === 'text/markdown' || a.mimeType === 'text/html' ? (
-              <button title="Preview" style={iconBtnStyle}
+              <button type="button" title="Preview" aria-label={`预览 ${a.name}`} style={iconBtnStyle}
                 onClick={(e) => { e.stopPropagation(); handlePreview(a) }}
-              ><Eye size={13} /></button>
+              ><Eye size={13} aria-hidden="true" /></button>
             ) : null}
-            <button title="Open file" style={iconBtnStyle}
+            <button type="button" title="Open file" aria-label={`打开 ${a.name}`} style={iconBtnStyle}
               onClick={(e) => { e.stopPropagation(); handleOpen(a) }}
-            ><Download size={13} /></button>
+            ><Download size={13} aria-hidden="true" /></button>
           </div>
         </div>
       ))}

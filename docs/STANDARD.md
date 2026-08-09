@@ -39,17 +39,57 @@ docs/
 
 ### 文件命名
 
-| 类型 | 格式 | 示例 |
-|------|------|------|
-| PRD | `prd-{三位序号}-{英文slug}.md` | `prd-001-agent.md` |
-| Tech Spec | `ts-{三位序号}-{英文slug}.md` | `ts-001-api.md` |
-| Plan | `{两位序号}-{英文slug}.md` | `01-task-bar.md` |
-| Reference | `ref-{三位序号}-{英文slug}.md` | `ref-001-api-endpoints.md` |
+采用**领域分段编号**：
 
-**规则：**
-- 序号从 001 开始，零填充，不跳号
-- 英文 slug 用连字符分隔，不超过 4 个单词
-- slug 要概括文档主题，如 `agent`、`chat`、`knowledge-ingest`
+```
+{domain}-{NNN}-{slug}.md
+```
+
+| 组件 | 说明 | 示例 |
+|------|------|------|
+| domain | 功能域前缀 | agents, chat, automation, plugins, auth |
+| NNN | 域内三位序号（不跨域比较，域内独立编号） | 001, 002 |
+| slug | 英文短横线描述 | expert-management, editor-ux |
+
+### 文档类型路径
+
+| 类型 | 路径 | 编号格式 |
+|------|------|---------|
+| PRD | docs/prd/{domain}-{NNN}-{slug}.md | 域内三位，如 agents-001 |
+| Tech Spec | docs/tech-spec/{domain}-{NNN}-{slug}.md | 域内三位，如 agents-001 |
+| Reference | docs/reference/{domain}-{NNN}-{slug}.md | 域内三位，如 agents-001 |
+| Plan | docs/plans/{domain}-{NN}-{slug}.md | 域内两位，如 agents-01 |
+
+### 规则
+
+- **域内不跳号**——agent 域内 agents-001, agents-002 连续；chat 域内 chat-001, chat-002 独立
+- **跨域不冲突**——不同域的编号互不影响
+- **Plan 子编号用横线追加**——agents-01-1 表示 agents-01 的子 plan
+
+### 示例
+
+```
+docs/prd/
+├── agents-001-expert-management.md     ← agent 域第 1 个 PRD
+├── agents-002-editor-ux.md             ← agent 域第 2 个 PRD
+├── chat-001-conversation.md            ← chat 域第 1 个 PRD
+
+docs/plans/
+├── agents-01-expert-management.md      ← agent 域实现计划
+├── agents-01-1-editor-ux.md            ← agent-01 的子计划
+```
+
+### 理由
+
+传统 `prd-017` 全局序号的问题：
+- 序号无语义信息，无法一眼看出属于哪个功能域
+- 多人并行开发时必然冲突（都抢下一个序号）
+- 与 ADR（Architecture Decision Records）混淆——ADR 用全局序号是合理的（时间顺序追加），但 PRD 是功能域文档，不是时间序列
+
+领域分段编号的好处：
+- 领域一眼可见
+- 并行开发不冲突
+- 域内序号独立管理，不跳号
 
 ---
 
@@ -59,10 +99,10 @@ docs/
 
 ```yaml
 ---
-id: prd-001           # 唯一标识，等于文件名不含 .md
+id: agents-001         # 唯一标识，等于文件名不含 .md
 title: 数字员工管理     # 中文标题
 type: prd              # prd | tech-spec | plan | reference
-related: [ts-001, ts-002]  # 关联文档 ID 列表，无关联写 []
+related: [agents-001-api]  # 关联文档 ID 列表，无关联写 []
 ---
 ```
 
@@ -215,8 +255,8 @@ Reference 是纯数据，不包含流程描述或设计意图。
 
 `related` 字段用于建立文档间关联：
 
-- PRD 关联其涉及的 Tech Spec：`related: [ts-001, ts-005]`
-- Tech Spec 关联其服务的 PRD：`related: [prd-007]`
+- PRD 关联其涉及的 Tech Spec：`related: [agents-001-api, agents-002-db]`
+- Tech Spec 关联其服务的 PRD：`related: [agents-001]`
 - Reference 通常不填 related（因为它是纯数据）
 - 无关联时写 `related: []`
 
@@ -224,9 +264,9 @@ Reference 是纯数据，不包含流程描述或设计意图。
 
 | PRD | 对应 Tech Spec |
 |-----|---------------|
-| prd-001（数字员工） | ts-002（数据库）、ts-023（分支系统） |
-| prd-007（聊天） | ts-001（API）、ts-005（前端）、ts-016（交接） |
-| prd-005（工具） | ts-006（沙箱）、ts-007（能力发现）、ts-022（工具执行） |
+| agents-001（数字员工） | agents-002-api（数据库）、agents-003-branch（分支系统） |
+| chat-001（聊天） | chat-001-api（API）、chat-002-frontend（前端）、chat-003-handoff（交接） |
+| tools-001（工具） | tools-001-sandbox（沙箱）、tools-002-discovery（能力发现）、tools-003-execution（工具执行） |
 
 ---
 
@@ -268,4 +308,4 @@ Reference 是纯数据，不包含流程描述或设计意图。
 
 ## 附录：完整示例
 
-参考本项目的 `docs/prd/prd-001-agent.md`（PRD 完整示例）和 `docs/tech-spec/ts-001-api.md`（Tech Spec 完整示例）。
+参考本项目的 `docs/prd/agents-001-expert-management.md`（PRD 完整示例）和 `docs/tech-spec/agents-001-api.md`（Tech Spec 完整示例）。

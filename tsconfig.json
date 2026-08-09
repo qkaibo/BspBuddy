@@ -16,6 +16,6 @@
       "@electron/*": ["electron/*"]
     }
   },
-  "include": ["src", "electron"],
+  "include": ["src", "apps", "electron"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

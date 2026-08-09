@@ -10,22 +10,34 @@ alwaysApply: true
 
 ```
 docs/
-├── README.md           ← 文档索引 + 元数据规范
+├── README.md           ← 文档索引 + 进度看板 + 元数据规范
 ├── CONTEXT.md          ← 领域术语表（Ubiquitous Language）
+├── STANDARD.md         ← 文档规范标准
+├── WORKFLOW.md         ← 文档生成工作流
 ├── prd/                ← 产品需求文档（面向产品经理/用户）
 │   └── prd-###-slug.md
 ├── tech-spec/          ← 技术规格（面向开发者）
 │   └── ts-###-slug.md
+├── plans/              ← 实现计划（分期任务 + 改动范围）
 └── reference/          ← 纯数据参考（API/枚举/流程）
     └── ref-###-slug.md
 ```
 
-## 命名规则
+`specs/` 已废弃；新文档只写在 `docs/` 下。
 
-- PRD：`prd-{三位序号}-{英文slug}.md`，如 `prd-001-agent.md`
-- Tech Spec：`ts-{三位序号}-{英文slug}.md`，如 `ts-001-api.md`
-- Reference：`ref-{三位序号}-{英文slug}.md`，如 `ref-001-api-endpoints.md`
-- 序号从 001 开始，零填充，不跳号
+**先文档后代码**（无 PRD 不得开写功能实现）见 alwaysApply 规则 `spec-driven-dev.mdc`。
+
+
+## 命名规则（与 docs/STANDARD.md 对齐）
+
+采用**领域分段编号** `{domain}-{NNN}-{slug}.md`：
+
+- PRD：`docs/prd/agents-001-expert-management.md`
+- Tech Spec：`docs/tech-spec/agents-002-sop.md`
+- Plan：`docs/plans/agents-02-sop-management.md`（域内两位，子 plan 用 `agents-01-1`）
+- Reference：`docs/reference/ref-001-ui-design-principles.md`
+
+域内不跳号；跨域编号独立。详见 `docs/STANDARD.md`。
 
 ## 元数据（YAML front matter）
 
@@ -33,10 +45,10 @@ docs/
 
 ```yaml
 ---
-id: prd-001
+id: agents-001
 title: 中文标题
-type: prd          # prd / tech-spec / reference
-related: [ts-001]  # 关联文档 ID 列表，无关联写 []
+type: prd          # prd / tech-spec / plan / reference
+related: [agents-001-api]  # 关联文档 ID 列表，无关联写 []
 ---
 ```
 

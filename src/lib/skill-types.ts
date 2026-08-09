@@ -19,7 +19,6 @@ export interface Skill {
   permissions?: SkillPermission[]
   securityWarnings?: string[]
   icon?: string
-  scriptContent?: string
   triggers?: SkillTrigger[]
 }
 
@@ -65,6 +64,18 @@ export interface SkillSearchResult {
   skill: Skill
   relevance: number
   matchReason: string
+}
+
+// ---------- Skill Update Params ----------
+export interface SkillUpdateParams {
+  name?: string
+  description?: string
+  category?: string
+  version?: string
+  author?: string
+  permissions?: SkillPermission[]
+  triggers?: SkillTrigger[]
+  icon?: string
 }
 
 // ---------- Skill Install Result ----------

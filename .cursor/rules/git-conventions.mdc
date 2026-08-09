@@ -32,7 +32,7 @@ alwaysApply: true
 | `feat` | 新功能 (feature) | `feat: add expert editor modal` |
 | `fix` | Bug 修复 | `fix: stop button not working on rapid click` |
 | `chore` | 杂项（构建、依赖、配置） | `chore: upgrade electron to v30` |
-| `docs` | 文档 | `docs: add prd-016 expert management` |
+| `docs` | 文档 | `docs: add agents-001 expert management` |
 | `refactor` | 重构（不改行为） | `refactor: extract IPC handler to separate file` |
 | `test` | 测试 | `test: add unit tests for expert service` |
 | `style` | 代码格式（不影响逻辑） | `style: format with prettier` |

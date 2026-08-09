@@ -3,6 +3,7 @@ import { Mail, FileText, BookOpen, Video, ClipboardList, Cloud, Plug, Link, QrCo
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { ConnectorDef, ConnectorConnectResult, ConnectorProvider, ConnectorScenario } from '../lib/connector-types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -185,7 +186,7 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
   const connectedCount = connectors.filter((c) => c.connected).length
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -209,7 +210,7 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
             <Plus size={12} />
             自定义连接器
           </button>
-          <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+          <button type="button" onClick={onClose} aria-label="关闭连接器面板" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
         </div>
       </div>
 
@@ -225,7 +226,7 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px' }}>
         {connectors.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-tertiary)', fontSize: 12 }}>
-            加载中...
+            加载中…
           </div>
         )}
         {connectors.map((def) => (
@@ -380,7 +381,7 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
             }}>
               <QrCode size={80} color="#333" />
               <div style={{ fontSize: 9, color: '#999', marginTop: 8 }}>扫描确认后完成授权</div>
-              <div style={{ fontSize: 8, color: '#ccc', marginTop: 4 }}>{showQQMailQR.url.slice(0, 40)}...</div>
+              <div style={{ fontSize: 8, color: '#ccc', marginTop: 4 }}>{showQQMailQR.url.slice(0, 40)}…</div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
               <button
@@ -421,11 +422,14 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
               </a>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="tapd-api-key" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
                 API Key <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <input
+                id="tapd-api-key"
+                name="tapd-api-key"
                 type="password"
+                autoComplete="off"
                 value={tapdConfig.apiKey}
                 onChange={(e) => setTapdConfig((p) => ({ ...p, apiKey: e.target.value }))}
                 placeholder="输入TAPD API Key"
@@ -433,11 +437,14 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
               />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="tapd-workspace-id" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
                 项目 ID <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <input
+                id="tapd-workspace-id"
+                name="tapd-workspace-id"
                 type="text"
+                autoComplete="off"
                 value={tapdConfig.workspaceId}
                 onChange={(e) => setTapdConfig((p) => ({ ...p, workspaceId: e.target.value }))}
                 placeholder="输入TAPD项目ID"
@@ -515,37 +522,37 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
             </div>
 
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="custom-connector-name" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
                 连接器名称 <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
-              <input type="text" value={customConfig.name} onChange={(e) => setCustomConfig((p) => ({ ...p, name: e.target.value }))}
+              <input id="custom-connector-name" name="connector-name" autoComplete="off" type="text" value={customConfig.name} onChange={(e) => setCustomConfig((p) => ({ ...p, name: e.target.value }))}
                 placeholder="输入连接器名称"
                 style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, fontFamily: 'inherit', color: 'var(--text-primary)', background: 'var(--bg-input)' }} />
             </div>
 
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="custom-connector-command" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
                 启动命令 <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
-              <input type="text" value={customConfig.command} onChange={(e) => setCustomConfig((p) => ({ ...p, command: e.target.value }))}
+              <input id="custom-connector-command" name="connector-command" autoComplete="off" type="text" value={customConfig.command} onChange={(e) => setCustomConfig((p) => ({ ...p, command: e.target.value }))}
                 placeholder="例如: uvx 或 npx"
                 style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, fontFamily: 'inherit', color: 'var(--text-primary)', background: 'var(--bg-input)' }} />
             </div>
 
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="custom-connector-args" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
                 命令参数
               </label>
-              <input type="text" value={customConfig.args} onChange={(e) => setCustomConfig((p) => ({ ...p, args: e.target.value }))}
+              <input id="custom-connector-args" name="connector-args" autoComplete="off" type="text" value={customConfig.args} onChange={(e) => setCustomConfig((p) => ({ ...p, args: e.target.value }))}
                 placeholder="多个参数用逗号分隔"
                 style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, fontFamily: 'inherit', color: 'var(--text-primary)', background: 'var(--bg-input)' }} />
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="custom-connector-env" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
                 环境变量
               </label>
-              <textarea value={customConfig.env} onChange={(e) => setCustomConfig((p) => ({ ...p, env: e.target.value }))}
+              <textarea id="custom-connector-env" name="connector-env" autoComplete="off" value={customConfig.env} onChange={(e) => setCustomConfig((p) => ({ ...p, env: e.target.value }))}
                 placeholder="KEY=VALUE 格式，每行一个"
                 rows={3}
                 style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, fontFamily: 'monospace', resize: 'vertical', color: 'var(--text-primary)', background: 'var(--bg-input)' }} />
@@ -567,7 +574,10 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div style={{
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
           position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
           padding: '8px 16px', borderRadius: 8, background: 'var(--text-primary)', color: '#fff',
           fontSize: 12, boxShadow: 'var(--shadow-lg)', zIndex: 200, whiteSpace: 'nowrap',
@@ -581,15 +591,21 @@ export function ConnectorPanel({ onClose, workspacePath }: Props) {
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div style={{
+    <div
+      role="dialog"
+      aria-modal="true"
+      data-overlay="true"
+      style={{
       position: 'absolute', inset: 0, zIndex: 150,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.5)',
+      overscrollBehavior: 'contain',
     }} onClick={onClose}>
       <div style={{
         background: 'var(--bg-card)', borderRadius: 12,
         padding: '20px 24px', minWidth: 360, maxWidth: 480,
         border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
+        overscrollBehavior: 'contain',
       }} onClick={(e) => e.stopPropagation()}>
         {children}
       </div>

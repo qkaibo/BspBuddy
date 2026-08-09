@@ -5,15 +5,17 @@
 
 ## 功能概要
 
-WorkBuddy 的核心输入区：三种工作模式切换、五个 AI 模型选择、工作空间设置、技能挂载、权限管理。
+WorkBuddy 的核心输入区：四种工作模式切换、动态模型选择、工作空间设置、技能挂载、权限管理。
 
 ## 已实现
 
 | 功能点 | 实现位置 | 说明 |
 |--------|----------|------|
-| 三模式切换 | `ModeSwitch.tsx` | Ask/Craft/Plan 按钮组，蓝色高亮当前模式 |
-| 五模型选择 | `ModelSelector.tsx` | DeepSeek/混元/GLM/Kimi/MiniMax 下拉 |
-| 工作空间选择 | `ChatPanel.tsx` 底部 + App.tsx | 文件夹图标 → 系统选择器 |
+| 模式切换 | `ModeSwitch.tsx` | 四模式（Ask/Craft/Plan/Design），输入框左侧下拉，蓝色高亮当前模式 |
+| 模型选择 | `ModelSelector.tsx` | 输入框下方左起第二个，动态加载本机/云端模型 |
+| 权限模式 | `PermissionSelector.tsx` | 输入框下方，与模型选择同行 |
+| 工作空间选择 | `ChatPanel.tsx` 底部 | 输入框下方最左侧第一个，显示当前工作区名称 |
+| 底部工具栏 | `ChatPanel.tsx` | 输入框下方最右侧：搜索/分享/历史图标 |
 | 模式感知 placeholder | `ChatPanel.tsx` | Ask: "Ask a question..." / Craft: "Describe your task..." |
 | 模型定义 | `types.ts` → `AVAILABLE_MODELS` | 每个模型含 id/name/provider/description |
 
@@ -29,8 +31,8 @@ WorkBuddy 的核心输入区：三种工作模式切换、五个 AI 模型选择
 ## 文件清单
 
 ```
-src/components/ModeSwitch.tsx      - 三模式按钮组
-src/components/ModelSelector.tsx   - 五模型下拉菜单
+src/components/ModeSwitch.tsx      - 四模式下拉组件
+src/components/ModelSelector.tsx   - 动态模型下拉菜单
 src/components/ChatPanel.tsx       - 集成 ModeSwitch + ModelSelector + workspace
 src/lib/types.ts                   - AgentMode, ModelOption, AVAILABLE_MODELS
 ```

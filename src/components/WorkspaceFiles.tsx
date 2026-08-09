@@ -94,7 +94,7 @@ export function WorkspaceFiles({ workspacePath }: Props) {
   return (
     <div style={{ overflow: 'auto', height: '100%', padding: '4px 0' }}>
       {loading && tree.length === 0 ? (
-        <div style={{ padding: 12, fontSize: 12, color: 'var(--text-tertiary)' }}>Loading...</div>
+        <div style={{ padding: 12, fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</div>
       ) : (
         tree.map((node) => (
           <TreeNodeRow key={node.path} node={node} onToggle={toggleExpand} depth={0} />
@@ -107,12 +107,16 @@ export function WorkspaceFiles({ workspacePath }: Props) {
 function TreeNodeRow({ node, onToggle, depth }: { node: TreeNode; onToggle: (n: TreeNode) => void; depth: number }) {
   return (
     <>
-      <div
+      <button
+        type="button"
         onClick={() => onToggle(node)}
+        aria-label={node.isDirectory ? (node.expanded ? `折叠 ${node.name}` : `展开 ${node.name}`) : node.name}
+        aria-expanded={node.isDirectory ? !!node.expanded : undefined}
         style={{
-          display: 'flex', alignItems: 'center', gap: 4,
+          display: 'flex', alignItems: 'center', gap: 4, width: '100%',
           padding: '3px 8px', paddingLeft: 8 + depth * 16,
           cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)',
+          background: 'transparent', border: 'none', fontFamily: 'inherit', textAlign: 'left',
         }}
         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -128,7 +132,7 @@ function TreeNodeRow({ node, onToggle, depth }: { node: TreeNode; onToggle: (n: 
           <File size={13} />
         )}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
-      </div>
+      </button>
       {node.expanded && node.children?.map((child) => (
         <TreeNodeRow key={child.path} node={child} onToggle={onToggle} depth={depth + 1} />
       ))}

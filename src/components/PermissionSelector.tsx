@@ -47,8 +47,12 @@ export function PermissionSelector({ mode, onChange }: Props) {
     <>
       <div ref={ref} style={{ position: 'relative' }}>
         <button
+          type="button"
           onClick={() => setOpen(!open)}
           title={isDefault ? '默认权限：高风险操作需要确认' : '完全访问权限：无二次确认（用完即关）'}
+          aria-label={isDefault ? '权限：默认权限' : '权限：完全访问'}
+          aria-haspopup="menu"
+          aria-expanded={open}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             background: isDefault ? 'var(--bg-input)' : 'rgba(239,68,68,0.08)',
@@ -56,17 +60,18 @@ export function PermissionSelector({ mode, onChange }: Props) {
             borderRadius: 'var(--radius-md)', padding: '4px 10px',
             cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
             color: isDefault ? 'var(--text-secondary)' : '#ef4444',
-            whiteSpace: 'nowrap', transition: 'all .15s ease',
+            whiteSpace: 'nowrap', transition: 'background .15s ease, color .15s ease, border-color .15s ease',
           }}
         >
           {isDefault ? (
-            <Shield size={12} />
+            <Shield size={12} aria-hidden="true" />
           ) : (
-            <ShieldOff size={12} />
+            <ShieldOff size={12} aria-hidden="true" />
           )}
           <span>{isDefault ? '默认权限' : '完全访问'}</span>
           <ChevronDown
             size={10}
+            aria-hidden="true"
             style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }}
           />
         </button>

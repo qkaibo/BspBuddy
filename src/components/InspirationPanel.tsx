@@ -7,6 +7,7 @@ import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { InspirationCase, InspirationCategory, InspirationPreset } from '../lib/plugin-types'
 import { INSPIRATION_CATEGORY_META } from '../lib/plugin-types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -103,23 +104,27 @@ export function InspirationPanel({ onClose, onFork }: Props) {
   if (view === 'detail' && selectedCase) {
     const meta = INSPIRATION_CATEGORY_META[selectedCase.category]
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+      <div style={panelRootStyle()}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <button
+            type="button"
             onClick={goBack}
+            aria-label="返回灵感列表"
             style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={18} aria-hidden="true" />
           </button>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{selectedCase.title}</div>
           <button
+            type="button"
             onClick={(e) => handleToggleFavorite(selectedCase.id, e)}
+            aria-label={favorites.has(selectedCase.id) ? '取消收藏' : '收藏'}
             style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
           >
-            <Heart size={18} fill={favorites.has(selectedCase.id) ? '#EF4444' : 'none'} color={favorites.has(selectedCase.id) ? '#EF4444' : 'var(--text-tertiary)'} />
+            <Heart size={18} aria-hidden="true" fill={favorites.has(selectedCase.id) ? '#EF4444' : 'none'} color={favorites.has(selectedCase.id) ? '#EF4444' : 'var(--text-tertiary)'} />
           </button>
-          <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+          <button type="button" onClick={onClose} aria-label="关闭灵感面板" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
         </div>
 
         {/* Detail Content */}
@@ -206,7 +211,7 @@ export function InspirationPanel({ onClose, onFork }: Props) {
             }}
           >
             <Play size={16} />
-            {forkingId === selectedCase.id ? '加载中...' : '制作我的版本'}
+            {forkingId === selectedCase.id ? '加载中…' : '制作我的版本'}
           </button>
         </div>
       </div>
@@ -215,7 +220,7 @@ export function InspirationPanel({ onClose, onFork }: Props) {
 
   // ====== Browse / Favorites View ======
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div
         style={{
@@ -241,18 +246,20 @@ export function InspirationPanel({ onClose, onFork }: Props) {
             <Heart size={12} fill={view === 'favorites' ? 'var(--accent)' : 'none'} />
             收藏
           </button>
-          <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+          <button type="button" onClick={onClose} aria-label="关闭灵感面板" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
         </div>
       </div>
 
       {/* Search */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-input)', borderRadius: 6, padding: '5px 10px', flex: 1 }}>
-          <SearchIcon size={12} color="var(--text-tertiary)" />
+          <SearchIcon size={12} color="var(--text-tertiary)" aria-hidden="true" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索灵感案例..."
+            name="inspiration-search"
+            aria-label="搜索灵感案例"
+            placeholder="搜索灵感案例…"
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 11, color: 'var(--text-primary)', fontFamily: 'inherit' }}
           />
         </div>
@@ -361,7 +368,11 @@ function CaseCard({ c, isFavorited, forkingId, onToggleFavorite, onFork, onShowD
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onShowDetail(c)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onShowDetail(c) } }}
+      aria-label={`查看灵感 ${c.title}`}
       style={{
         borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)',
         background: 'var(--bg-card)', cursor: 'pointer',
@@ -383,14 +394,16 @@ function CaseCard({ c, isFavorited, forkingId, onToggleFavorite, onFork, onShowD
         </div>
         {/* Favorite button */}
         <button
+          type="button"
           onClick={(e) => onToggleFavorite(c.id, e)}
+          aria-label={isFavorited ? '取消收藏' : '收藏'}
           style={{
             position: 'absolute', top: 6, right: 6, width: 26, height: 26,
             borderRadius: '50%', background: 'rgba(0,0,0,0.35)', border: 'none',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <Heart size={13} fill={isFavorited ? '#EF4444' : 'none'} color={isFavorited ? '#EF4444' : '#fff'} />
+          <Heart size={13} aria-hidden="true" fill={isFavorited ? '#EF4444' : 'none'} color={isFavorited ? '#EF4444' : '#fff'} />
         </button>
       </div>
 
@@ -435,7 +448,7 @@ function CaseCard({ c, isFavorited, forkingId, onToggleFavorite, onFork, onShowD
             }}
           >
             <Play size={10} />
-            {forkingId === c.id ? '...' : '做同款'}
+            {forkingId === c.id ? '…' : '做同款'}
           </button>
         </div>
       </div>

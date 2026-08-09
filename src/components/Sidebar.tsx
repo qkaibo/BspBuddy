@@ -16,7 +16,7 @@ interface Session {
   status?: 'in_progress' | 'completed' | 'failed' | 'pending' | 'planning' | 'archived'
 }
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback'
 
 interface Props {
   sessions: Session[]
@@ -43,12 +43,12 @@ const AVATAR_MENU_ITEMS = [
 ]
 
 const STATUS_DOT_COLORS: Record<string, string> = {
-  in_progress: '#3b82f6',
-  completed: '#22c55e',
-  failed: '#ef4444',
-  pending: '#f59e0b',
-  planning: '#a855f7',
-  archived: '#6b7280',
+  in_progress: 'var(--accent)',
+  completed: 'var(--success)',
+  failed: 'var(--danger)',
+  pending: 'var(--warning)',
+  planning: 'var(--purple)',
+  archived: 'var(--text-tertiary)',
 }
 
 export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, onToggleCollapse, activeView = 'chat', onNavigate }: Props) {
@@ -103,7 +103,10 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
     workspaceGroups.get(ws)!.push(s)
   }
 
-  const isNavActive = (id: string) => activeView === id || (id === 'assistant' && activeView === 'assistant-settings') || (id === 'experts-plugin' && (activeView === 'experts' || activeView === 'plugins'))
+  const isNavActive = (id: string) => activeView === id
+    || (id === 'assistant' && activeView === 'assistant-settings')
+    || (id === 'experts-plugin' && (activeView === 'experts' || activeView === 'plugins'))
+    || (id === 'settings' && activeView === 'member-roles')
 
   const handleRename = (id: string) => {
     const name = prompt('新名称：')
@@ -112,78 +115,109 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
   }
 
   return (
-    <div style={{
-      width: collapsed ? 52 : 240, transition: 'width .2s ease',
-      background: 'var(--bg-sidebar)', height: '100%',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      borderRight: '1px solid var(--border)',
-      userSelect: 'none',
-    }}>
+    <div
+      className="bb-sidebar-surface"
+      style={{
+        width: collapsed ? 56 : 268, transition: 'width .2s ease',
+        height: '100%',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        userSelect: 'none',
+        flexShrink: 0,
+      }}
+    >
       {/* Header: Brand + version + actions */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: collapsed ? '6px 4px' : '10px 12px',
-        minHeight: 40,
+        display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between',
+        padding: collapsed ? '10px 4px' : '14px 14px 12px',
+        minHeight: 52,
+        boxShadow: '0 1px 0 rgba(15, 23, 42, 0.04)',
       }}>
         {!collapsed && (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden', minWidth: 0 }}>
+            <span style={{
+              fontSize: 'var(--font-title)', fontWeight: 700, letterSpacing: '-0.02em',
+              color: 'var(--text-primary)', whiteSpace: 'nowrap',
+            }}>
               BspBuddy
             </span>
-            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 'var(--font-micro)', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
               v0.2
             </span>
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 2 }}>
           <button
-            title="折叠侧栏"
+            type="button"
+            className="bb-icon-btn"
+            title={collapsed ? '展开侧栏' : '折叠侧栏'}
+            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
             onClick={onToggleCollapse}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 28, height: 28, borderRadius: 6,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-secondary)', padding: 0,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
-            <PanelLeftClose size={15} />
+            <PanelLeftClose size={15} strokeWidth={1.75} aria-hidden="true" style={{ transform: collapsed ? 'scaleX(-1)' : undefined }} />
           </button>
           {!collapsed && (
             <>
               <button
+                type="button"
+                className="bb-icon-btn"
                 title="搜索"
+                aria-label="搜索任务"
                 onClick={() => setSearchOpen(!searchOpen)}
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 28, height: 28, borderRadius: 6,
-                  background: searchOpen ? 'var(--bg-hover)' : 'none',
-                  border: 'none', cursor: 'pointer',
-                  color: searchOpen ? 'var(--accent)' : 'var(--text-secondary)', padding: 0,
+                  background: searchOpen ? 'var(--bg-hover)' : undefined,
+                  color: searchOpen ? 'var(--accent)' : undefined,
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = searchOpen ? 'var(--bg-hover)' : 'none'}
               >
-                <Search size={15} />
+                <Search size={15} strokeWidth={1.75} aria-hidden="true" />
               </button>
               <button
+                type="button"
+                className="bb-icon-btn"
                 title="筛选"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 28, height: 28, borderRadius: 6,
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--text-secondary)', padding: 0,
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                aria-label="筛选"
               >
-                <SlidersHorizontal size={15} />
+                <SlidersHorizontal size={15} strokeWidth={1.75} aria-hidden="true" />
               </button>
             </>
           )}
         </div>
       </div>
+
+      {/* Collapsed: icon rail only */}
+      {collapsed && (
+        <div className="bb-nav-rail">
+          <button type="button" className="bb-nav-rail-btn" title="新建任务" aria-label="新建任务" onClick={onNewSession}>
+            <Plus size={18} strokeWidth={1.75} />
+          </button>
+          {PRIMARY_NAV.map((item) => {
+            const active = isNavActive(item.id) || isNavActive(item.view)
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`bb-nav-rail-btn${active ? ' bb-nav-rail-btn--active' : ''}`}
+                title={item.label}
+                aria-label={item.label}
+                onClick={() => {
+                  if (item.id === 'experts-plugin') onNavigate?.('experts')
+                  else onNavigate?.(item.view)
+                }}
+              >
+                <item.icon size={17} strokeWidth={1.75} />
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            className={`bb-nav-rail-btn${moreMenuOpen ? ' bb-nav-rail-btn--active' : ''}`}
+            title="更多"
+            aria-label="更多"
+            onClick={() => onNavigate?.('inspiration')}
+          >
+            <Grid3x3 size={17} strokeWidth={1.75} />
+          </button>
+        </div>
+      )}
 
       {/* Search input (conditional) */}
       {!collapsed && searchOpen && (
@@ -193,11 +227,13 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
             background: 'var(--bg-input)', borderRadius: 6,
             padding: '5px 10px',
           }}>
-            <Search size={13} color="var(--text-tertiary)" />
+            <Search size={13} color="var(--text-tertiary)" aria-hidden="true" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索任务..."
+              name="sidebar-search"
+              aria-label="搜索任务"
+              placeholder="搜索任务…"
               autoFocus
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
@@ -208,24 +244,13 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         </div>
       )}
 
-      {/* Primary Navigation */}
+      {/* Primary Navigation — expanded */}
       {!collapsed && (
-        <div style={{ padding: '4px 8px' }}>
-          {/* + 新建任务 — emphasized first item */}
-          <button
-            onClick={onNewSession}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 10px', borderRadius: 6,
-              border: 'none', cursor: 'pointer', fontSize: 13,
-              color: 'var(--text-primary)', fontWeight: 600,
-              fontFamily: 'inherit', background: 'none',
-              textAlign: 'left' as const,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-          >
-            <Plus size={15} color="var(--accent)" />
+        <div style={{ padding: '6px 0 4px' }}>
+          <button type="button" className="bb-nav-row" onClick={onNewSession} style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span className="bb-icon-tile" aria-hidden="true">
+              <Plus size={13} strokeWidth={1.75} />
+            </span>
             <span>新建任务</span>
           </button>
 
@@ -234,25 +259,18 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
               return (
                 <div key={item.id} style={{ position: 'relative' }}>
                   <button
+                    type="button"
+                    className={`bb-nav-row${isNavActive(item.id) ? ' bb-nav-row--active' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation()
                       setPluginMenuOpen(!pluginMenuOpen)
                     }}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '6px 10px', borderRadius: 6,
-                      background: isNavActive(item.id) ? 'var(--bg-hover)' : 'none',
-                      border: 'none', cursor: 'pointer', fontSize: 12,
-                      color: isNavActive(item.id) ? 'var(--accent)' : 'var(--text-secondary)',
-                      fontWeight: isNavActive(item.id) ? 600 : 400,
-                      fontFamily: 'inherit', textAlign: 'left' as const,
-                    }}
-                    onMouseEnter={(e) => { if (!isNavActive(item.id)) e.currentTarget.style.background = 'var(--bg-hover)' }}
-                    onMouseLeave={(e) => { if (!isNavActive(item.id)) e.currentTarget.style.background = 'none' }}
                   >
-                    <item.icon size={14} />
+                    <span className={`bb-icon-tile${isNavActive(item.id) ? ' bb-icon-tile--active' : ' bb-icon-tile--muted'}`} aria-hidden="true">
+                      <item.icon size={13} strokeWidth={1.75} />
+                    </span>
                     <span style={{ flex: 1 }}>{item.label}</span>
-                    <ChevronDown size={10} style={{ opacity: 0.5, transition: 'transform .15s ease', transform: pluginMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    <ChevronDown size={11} strokeWidth={1.75} style={{ opacity: 0.45, transition: 'transform .15s ease', transform: pluginMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                   </button>
                   {pluginMenuOpen && (
                     <div
@@ -274,20 +292,13 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
             return (
               <button
                 key={item.id}
+                type="button"
+                className={`bb-nav-row${isNavActive(item.view) ? ' bb-nav-row--active' : ''}`}
                 onClick={() => onNavigate?.(item.view)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 10px', borderRadius: 6,
-                  background: isNavActive(item.view) ? 'var(--bg-hover)' : 'none',
-                  border: 'none', cursor: 'pointer', fontSize: 12,
-                  color: isNavActive(item.view) ? 'var(--accent)' : 'var(--text-secondary)',
-                  fontWeight: isNavActive(item.view) ? 600 : 400,
-                  fontFamily: 'inherit', textAlign: 'left' as const,
-                }}
-                onMouseEnter={(e) => { if (!isNavActive(item.view)) e.currentTarget.style.background = 'var(--bg-hover)' }}
-                onMouseLeave={(e) => { if (!isNavActive(item.view)) e.currentTarget.style.background = 'none' }}
               >
-                <item.icon size={14} />
+                <span className={`bb-icon-tile${isNavActive(item.view) ? ' bb-icon-tile--active' : ' bb-icon-tile--muted'}`} aria-hidden="true">
+                  <item.icon size={13} strokeWidth={1.75} />
+                </span>
                 <span style={{ flex: 1 }}>{item.label}</span>
               </button>
             )
@@ -296,25 +307,18 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
           {/* "更多" with subtitle */}
           <div style={{ position: 'relative' }}>
             <button
+              type="button"
+              className={`bb-nav-row${moreMenuOpen ? ' bb-nav-row--active' : ''}`}
               onClick={(e) => {
                 e.stopPropagation()
                 setMoreMenuOpen(!moreMenuOpen)
               }}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '6px 10px', borderRadius: 6,
-                background: moreMenuOpen ? 'var(--bg-hover)' : 'none',
-                border: 'none', cursor: 'pointer', fontSize: 12,
-                color: moreMenuOpen ? 'var(--accent)' : 'var(--text-secondary)',
-                fontWeight: moreMenuOpen ? 600 : 400,
-                fontFamily: 'inherit', textAlign: 'left' as const,
-              }}
-              onMouseEnter={(e) => { if (!moreMenuOpen) e.currentTarget.style.background = 'var(--bg-hover)' }}
-              onMouseLeave={(e) => { if (!moreMenuOpen) e.currentTarget.style.background = 'none' }}
             >
-              <Grid3x3 size={14} />
+              <span className={`bb-icon-tile${moreMenuOpen ? ' bb-icon-tile--active' : ' bb-icon-tile--muted'}`} aria-hidden="true">
+                <Grid3x3 size={13} strokeWidth={1.75} />
+              </span>
               <span>更多</span>
-              <span style={{ fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>资料库·灵感</span>
+              <span style={{ fontSize: 'var(--font-micro)', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>资料库·灵感</span>
             </button>
             {moreMenuOpen && (
               <div
@@ -336,37 +340,37 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         </div>
       )}
 
-      <div style={{
-        margin: collapsed ? '4px 4px' : '4px 8px',
-        borderTop: '1px solid var(--border)',
-      }} />
+      {!collapsed && (
+        <div style={{
+          margin: '6px 14px',
+          height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(15,23,42,0.06), transparent)',
+        }} />
+      )}
 
       {/* Tasks + Spaces section (both visible) */}
       <div style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '2px' : '0 4px' }}>
         {/* Tasks Section */}
         {!collapsed && (
           <>
-            <div
+            <button
+              type="button"
+              className="bb-section-label"
               onClick={() => setTaskSectionCollapsed(!taskSectionCollapsed)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '6px 10px', cursor: 'pointer',
-                fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)',
-                textTransform: 'uppercase', letterSpacing: '.5px',
-                userSelect: 'none',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
+              aria-expanded={!taskSectionCollapsed}
+              aria-label={taskSectionCollapsed ? '展开任务列表' : '折叠任务列表'}
             >
               <ChevronDown
                 size={12}
+                strokeWidth={1.75}
+                aria-hidden="true"
                 style={{
                   transform: taskSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
                   transition: 'transform .15s ease',
                 }}
               />
               任务 ({filtered.length})
-            </div>
+            </button>
             {!taskSectionCollapsed && filtered.map((s) => {
               const sStatus = s.status || 'pending'
               const dotColor = STATUS_DOT_COLORS[sStatus]
@@ -374,36 +378,23 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
               return (
                 <button
                   key={s.id}
+                  type="button"
+                  className={`bb-session-item${s.active ? ' bb-session-item--active' : ''}`}
                   onClick={() => onSelectSession(s.id)}
                   onContextMenu={(e) => handleContextMenu(e, s.id)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '7px 10px', borderRadius: 6,
-                    background: s.active ? 'var(--bg-hover)' : 'transparent',
-                    border: 'none', cursor: 'pointer', fontSize: 12,
-                    color: s.active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    textAlign: 'left' as const, fontFamily: 'inherit',
-                  }}
-                  onMouseEnter={(e) => { if (!s.active) e.currentTarget.style.background = 'var(--bg-hover)' }}
-                  onMouseLeave={(e) => { if (!s.active) e.currentTarget.style.background = 'transparent' }}
                 >
-                  <MessageSquare size={13} style={{ flexShrink: 0, opacity: 0.6 }} />
-                  <span style={{
-                    flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    fontWeight: s.active ? 600 : 400,
-                  }}>
-                    {s.title}
+                  <span className="bb-session-icon" aria-hidden="true">
+                    <MessageSquare size={12} strokeWidth={1.75} />
+                  </span>
+                  <span className="bb-session-text">
+                    <span className="bb-session-title">{s.title}</span>
+                    <span className="bb-session-meta">
+                      {s.workspace || '本地'} · {s.date}
+                    </span>
                   </span>
                   {showDot ? (
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: dotColor, flexShrink: 0,
-                    }} />
-                  ) : (
-                    <span style={{ fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                      {s.date}
-                    </span>
-                  )}
+                    <span className="bb-session-dot" style={{ background: dotColor }} aria-hidden="true" />
+                  ) : null}
                 </button>
               )
             })}
@@ -418,27 +409,24 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         {/* Spaces Section */}
         {!collapsed && (
           <>
-            <div
+            <button
+              type="button"
+              className="bb-section-label"
               onClick={() => setSpaceSectionCollapsed(!spaceSectionCollapsed)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '6px 10px', marginTop: 8, cursor: 'pointer',
-                fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)',
-                textTransform: 'uppercase', letterSpacing: '.5px',
-                userSelect: 'none',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
+              aria-expanded={!spaceSectionCollapsed}
+              aria-label={spaceSectionCollapsed ? '展开空间列表' : '折叠空间列表'}
             >
               <ChevronDown
                 size={12}
+                strokeWidth={1.75}
+                aria-hidden="true"
                 style={{
                   transform: spaceSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
                   transition: 'transform .15s ease',
                 }}
               />
               空间 ({workspaceGroups.size})
-            </div>
+            </button>
             {!spaceSectionCollapsed && Array.from(workspaceGroups.entries()).map(([ws, wsSessions]) => {
               const isExpanded = expandedSpaces.has(ws)
               return (
@@ -473,36 +461,20 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
                   {isExpanded && wsSessions.map((s) => (
                     <button
                       key={s.id}
+                      type="button"
+                      className={`bb-session-item${s.active ? ' bb-session-item--active' : ''}`}
+                      style={{ marginLeft: 20, width: 'calc(100% - 28px)' }}
                       onClick={() => onSelectSession(s.id)}
                       onContextMenu={(e) => handleContextMenu(e, s.id)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '5px 10px 5px 28px', borderRadius: 6,
-                        background: s.active ? 'var(--bg-hover)' : 'transparent',
-                        border: 'none', cursor: 'pointer', fontSize: 12,
-                        color: s.active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        textAlign: 'left' as const, fontFamily: 'inherit',
-                      }}
-                      onMouseEnter={(e) => { if (!s.active) e.currentTarget.style.background = 'var(--bg-hover)' }}
-                      onMouseLeave={(e) => { if (!s.active) e.currentTarget.style.background = 'transparent' }}
                     >
-                      <span style={{
-                        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        fontWeight: s.active ? 600 : 400,
-                      }}>
-                        {s.title}
+                      <span className="bb-session-icon" aria-hidden="true">
+                        <MessageSquare size={12} strokeWidth={1.75} />
                       </span>
-                      {!s.workspace && (
-                        <span style={{
-                          fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                          background: 'var(--bg-input)', color: 'var(--text-tertiary)',
-                          fontWeight: 500, flexShrink: 0,
-                        }}>
-                          本地
+                      <span className="bb-session-text">
+                        <span className="bb-session-title">{s.title}</span>
+                        <span className="bb-session-meta">
+                          {s.workspace || '本地'} · {s.date}
                         </span>
-                      )}
-                      <span style={{ fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                        {s.date}
                       </span>
                     </button>
                   ))}
@@ -541,14 +513,20 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
 
       {/* Footer */}
       <div style={{
-        borderTop: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: collapsed ? '6px' : '8px 12px',
+        boxShadow: '0 -1px 0 rgba(15, 23, 42, 0.04)',
+        display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between',
+        padding: collapsed ? '10px 6px' : '10px 14px',
         position: 'relative',
       }}>
         {/* Avatar + Display Name */}
         <button
-          onClick={() => setAvatarMenuOpen(!avatarMenuOpen)}
+          type="button"
+          aria-label="账号菜单"
+          aria-expanded={avatarMenuOpen}
+          onClick={(e) => {
+            e.stopPropagation()
+            setAvatarMenuOpen((open) => !open)
+          }}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             border: 'none', background: 'transparent',
@@ -575,7 +553,9 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
+              type="button"
               title="通知"
+              aria-label="通知"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 28, height: 28, borderRadius: 6,
@@ -585,10 +565,12 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
-              <Bell size={14} />
+              <Bell size={14} aria-hidden="true" />
             </button>
             <button
+              type="button"
               title="分享/链接"
+              aria-label="分享/链接"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 28, height: 28, borderRadius: 6,
@@ -598,7 +580,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
-              <Link size={14} />
+              <Link size={14} aria-hidden="true" />
             </button>
           </div>
         )}

@@ -4,6 +4,8 @@ import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { Project, ProjectTemplate, ConnectorConfig } from '../lib/project-types'
 import { ProjectDetail } from './ProjectDetail'
+import { ConfirmDialog } from './ConfirmDialog'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -35,6 +37,7 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
   const [availableConnectors, setAvailableConnectors] = useState<Array<{ id: string; name: string; type: string }>>([])
   const [availableExperts, setAvailableExperts] = useState<Array<{ id: string; name: string }>>([])
   const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string }>>([])
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const loadProjects = useCallback(async () => {
     const result = await ipc.invoke(IPC_CHANNELS.PROJECT_LIST) as { success: boolean; projects: Project[] }
@@ -119,22 +122,36 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
 
   if (selectedProject) {
     return (
-      <ProjectDetail
-        project={selectedProject}
-        currentUserId={userId}
-        currentUserName={userName}
-        currentUser={currentUser}
-        onBack={() => setSelectedProjectId(null)}
-        onDelete={() => handleDeleteProject(selectedProject.id)}
-        onUpdate={(updated) => {
-          setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-        }}
-      />
+      <div style={panelRootStyle({ background: 'transparent', overflow: 'hidden' })}>
+        <ProjectDetail
+          project={selectedProject}
+          currentUserId={userId}
+          currentUserName={userName}
+          currentUser={currentUser}
+          onBack={() => setSelectedProjectId(null)}
+          onDelete={() => setConfirmDeleteId(selectedProject.id)}
+          onUpdate={(updated) => {
+            setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+          }}
+        />
+        {confirmDeleteId && (
+          <ConfirmDialog
+            title="确认删除项目"
+            message="删除后项目及其资源将不可恢复，确定要删除吗？"
+            onConfirm={() => {
+              const id = confirmDeleteId
+              setConfirmDeleteId(null)
+              void handleDeleteProject(id)
+            }}
+            onCancel={() => setConfirmDeleteId(null)}
+          />
+        )}
+      </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ padding: '20px 24px 12px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -157,11 +174,13 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
           background: 'var(--bg-input)', borderRadius: 8,
           padding: '8px 14px',
         }}>
-          <Search size={14} color="var(--text-tertiary)" />
+          <Search size={14} color="var(--text-tertiary)" aria-hidden="true" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search projects..."
+            name="project-search"
+            aria-label="搜索项目"
+            placeholder="Search projects…"
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
               fontSize: 13, color: 'var(--text-primary)', fontFamily: 'inherit',
@@ -172,9 +191,14 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
 
       {/* Create modal */}
       {showCreate && (
-        <div style={{
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-overlay="true"
+          style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+          overscrollBehavior: 'contain',
         }}>
           <div style={{
             background: 'var(--bg-card)', borderRadius: 12, padding: 24,
@@ -218,7 +242,7 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
                   <textarea
                     value={newInstructions}
                     onChange={(e) => setNewInstructions(e.target.value)}
-                    placeholder="Global AI behavior rules inherited by all tasks..."
+                    placeholder="Global AI behavior rules inherited by all tasks…"
                     rows={3}
                     style={{
                       width: '100%', padding: '8px 12px', borderRadius: 6,
@@ -407,7 +431,11 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
             {filtered.map((p) => (
               <div
                 key={p.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedProjectId(p.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProjectId(p.id) } }}
+                aria-label={`打开项目 ${p.name}`}
                 style={{
                   padding: 16, borderRadius: 10, background: 'var(--bg-card)',
                   border: '1px solid var(--border)', cursor: 'pointer',
@@ -426,15 +454,17 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
                     </div>
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteProject(p.id) }}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id) }}
                     style={{
                       padding: 4, borderRadius: 4, border: 'none',
                       background: 'transparent', cursor: 'pointer',
                       color: 'var(--text-tertiary)',
                     }}
                     title="Delete project"
+                    aria-label={`删除项目 ${p.name}`}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={13} aria-hidden="true" />
                   </button>
                 </div>
 
@@ -469,6 +499,18 @@ export function ProjectPanel({ onNavigateToChat, currentUserId, currentUserName,
           </div>
         )}
       </div>
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="确认删除项目"
+          message="删除后项目及其资源将不可恢复，确定要删除吗？"
+          onConfirm={() => {
+            const id = confirmDeleteId
+            setConfirmDeleteId(null)
+            void handleDeleteProject(id)
+          }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
     </div>
   )
 }

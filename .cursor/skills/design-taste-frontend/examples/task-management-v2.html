@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务管理 - 反-slop设计 v1.1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing: border-box; }
+
+    /* === 亮色模式变量 === */
+    :root, [data-theme="light"] {
+      --color-primary: #1a1a1a;
+      --color-secondary: #666;
+      --color-accent: #0d9488;  /* 深青，有品味 */
+      --color-bg: #fafafa;
+      --color-surface: #fff;
+      --color-border: #e5e5e5;
+      --color-success: #16a34a;
+      --color-warning: #d97706;
+      --color-error: #dc2626;
+      --color-info: #2563eb;
+      
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+    }
+
+    /* === 暗色模式变量 === */
+    [data-theme="dark"] {
+      --color-primary: #fafafa;
+      --color-secondary: #a1a1aa;
+      --color-accent: #2dd4bf;
+      --color-bg: #0a0a0a;
+      --color-surface: #171717;
+      --color-border: #262626;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      color: var(--color-primary);
+      line-height: 1.6;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* 主题切换按钮 */
+    .theme-toggle {
+      position: fixed;
+      top: var(--space-4);
+      right: var(--space-4);
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      z-index: 100;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: var(--color-bg);
+      transform: translateY(-1px);
+    }
+
+    /* 导航 */
+    .navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .nav-brand {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--color-primary);
+    }
+
+    .nav-links { display: flex; gap: var(--space-8); }
+
+    .nav-links a {
+      font-size: 1rem;
+      color: var(--color-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--color-primary); }
+
+    .nav-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      background: var(--color-border);
+    }
+
+    /* 主内容 */
+    .main {
+      max-width: 960px;
+      margin: var(--space-8) auto;
+      padding: 0 var(--space-8);
+    }
+
+    /* 页面标题 */
+    .page-header { margin-bottom: var(--space-8); }
+
+    .page-header h1 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2.5rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+
+    .page-header p {
+      font-size: 1rem;
+      color: var(--color-secondary);
+    }
+
+    /* 统计卡片 */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+
+    .stat-card {
+      padding: var(--space-6);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+      margin-bottom: var(--space-2);
+    }
+
+    .stat-value {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: var(--space-1);
+    }
+
+    .stat-change {
+      font-size: 0.875rem;
+    }
+
+    .stat-change.positive { color: var(--color-success); }
+    .stat-change.negative { color: var(--color-error); }
+
+    /* 任务列表 */
+    .section-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: var(--space-4);
+    }
+
+    .task-list {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    .task-header {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg);
+      border-bottom: 2px solid var(--color-border);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-secondary);
+    }
+
+    .task-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--color-border);
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+
+    .task-row:last-child { border-bottom: none; }
+    .task-row:hover { background: var(--color-bg); }
+
+    .task-name { font-weight: 500; }
+
+    .status {
+      display: inline-block;
+      padding: var(--space-1) var(--space-3);
+      font-size: 0.875rem;
+      border-radius: 4px;
+    }
+
+    .status.active { background: #f0fdf4; color: #166534; }
+    .status.pending { background: #fef9c3; color: #854d0e; }
+    .status.completed { background: #eff6ff; color: #1e40af; }
+
+    .priority {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .priority.high { color: var(--color-error); }
+    .priority.medium { color: var(--color-warning); }
+    .priority.low { color: var(--color-secondary); }
+
+    /* 新任务按钮 */
+    .new-task-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-6);
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: #fff;
+      background: var(--color-primary);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .new-task-btn:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    /* 新任务表单 */
+    .new-task-form {
+      margin-top: var(--space-8);
+      padding: var(--space-6);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    .form-group { margin-bottom: var(--space-4); }
+
+    .form-group label {
+      display: block;
+      margin-bottom: var(--space-2);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-secondary);
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: var(--space-3) var(--space-4);
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      color: var(--color-primary);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-3);
+      margin-top: var(--space-6);
+    }
+
+    .btn-secondary {
+      padding: var(--space-3) var(--space-6);
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: var(--color-primary);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-secondary:hover { 
+      background: var(--color-bg); 
+      border-color: var(--color-primary); 
+    }
+
+    .btn-primary {
+      padding: var(--space-3) var(--space-6);
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      color: #fff;
+      background: var(--color-primary);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:hover { background: #333; }
+
+    @media (max-width: 768px) {
+      .stats { grid-template-columns: 1fr; }
+      .task-header, .task-row { grid-template-columns: 2fr 1fr; }
+      .task-header .col-3, .task-header .col-4,
+      .task-row .col-3, .task-row .col-4 { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 主题切换按钮 -->
+  <button class="theme-toggle" onclick="toggleTheme()">🌙 暗色模式</button>
+
+  <!-- 导航 -->
+  <nav class="navbar">
+    <div class="nav-brand">任务管理</div>
+    <div class="nav-links">
+      <a href="#">概览</a>
+      <a href="#">项目</a>
+      <a href="#">团队</a>
+      <a href="#">报告</a>
+    </div>
+    <div class="nav-avatar"></div>
+  </nav>
+
+  <!-- 主内容 -->
+  <div class="main">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1>今日任务</h1>
+      <p>2026年5月26日 · 周二 · 8项任务</p>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">进行中</div>
+        <div class="stat-value">3</div>
+        <div class="stat-change positive">↑ 1项新增</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">待处理</div>
+        <div class="stat-value">2</div>
+        <div class="stat-change negative">↓ 需关注</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">已完成</div>
+        <div class="stat-value">3</div>
+        <div class="stat-change positive">↑ 2项完成</div>
+      </div>
+    </div>
+
+    <!-- 任务列表 -->
+    <h2 class="section-title">任务列表</h2>
+    <div class="task-list">
+      <div class="task-header">
+        <div>任务名称</div>
+        <div>状态</div>
+        <div class="col-3">优先级</div>
+        <div class="col-4">截止日期</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">完成产品需求文档</div>
+        <div><span class="status active">进行中</span></div>
+        <div class="col-3"><span class="priority high">高</span></div>
+        <div class="col-4">5月28日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">设计新版登录页</div>
+        <div><span class="status active">进行中</span></div>
+        <div class="col-3"><span class="priority high">高</span></div>
+        <div class="col-4">5月27日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">编写API接口文档</div>
+        <div><span class="status active">进行中</span></div>
+        <div class="col-3"><span class="priority medium">中</span></div>
+        <div class="col-4">5月30日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">修复移动端样式问题</div>
+        <div><span class="status pending">待处理</span></div>
+        <div class="col-3"><span class="priority medium">中</span></div>
+        <div class="col-4">5月29日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">更新用户隐私政策</div>
+        <div><span class="status pending">待处理</span></div>
+        <div class="col-3"><span class="priority low">低</span></div>
+        <div class="col-4">6月1日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">部署测试环境</div>
+        <div><span class="status completed">已完成</span></div>
+        <div class="col-3"><span class="priority high">高</span></div>
+        <div class="col-4">5月26日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">提交周报</div>
+        <div><span class="status completed">已完成</span></div>
+        <div class="col-3"><span class="priority low">低</span></div>
+        <div class="col-4">5月26日</div>
+      </div>
+      <div class="task-row">
+        <div class="task-name">整理会议纪要</div>
+        <div><span class="status completed">已完成</span></div>
+        <div class="col-3"><span class="priority low">低</span></div>
+        <div class="col-4">5月26日</div>
+      </div>
+    </div>
+
+    <button class="new-task-btn" onclick="toggleForm()">+ 新建任务</button>
+
+    <!-- 新任务表单 -->
+    <div class="new-task-form" id="taskForm" style="display:none;">
+      <h3 class="section-title">创建新任务</h3>
+      <div class="form-group">
+        <label for="task-name">任务名称</label>
+        <input type="text" id="task-name" placeholder="请输入任务名称" />
+      </div>
+      <div class="form-group">
+        <label for="task-priority">优先级</label>
+        <select id="task-priority">
+          <option value="">请选择优先级</option>
+          <option value="high">高</option>
+          <option value="medium">中</option>
+          <option value="low">低</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="task-date">截止日期</label>
+        <input type="date" id="task-date" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-secondary" onclick="toggleForm()">取消</button>
+        <button class="btn-primary" onclick="createTask()">创建任务</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 主题切换
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.querySelector('.theme-toggle').textContent = 
+        next === 'dark' ? '☀️ 亮色模式' : '🌙 暗色模式';
+    }
+
+    // 表单切换
+    function toggleForm() {
+      const form = document.getElementById('taskForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // 创建任务（演示）
+    function createTask() {
+      alert('任务创建功能（演示）');
+      toggleForm();
+    }
+
+    // 自动跟随系统主题
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.querySelector('.theme-toggle').textContent = '☀️ 亮色模式';
+    }
+  </script>
+</body>
+</html>

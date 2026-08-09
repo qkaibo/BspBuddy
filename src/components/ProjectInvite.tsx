@@ -54,27 +54,35 @@ export function ProjectInvite({ projectId, projectName, createdBy, onClose }: Pr
   }
 
   return (
-    <div style={{
+    <div
+      role="dialog"
+      aria-modal="true"
+      data-overlay="true"
+      style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+      overscrollBehavior: 'contain',
     }}>
       <div style={{
         background: 'var(--bg-card)', borderRadius: 12, padding: 24,
         width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        overscrollBehavior: 'contain',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Users size={18} color="var(--accent)" />
+            <Users size={18} color="var(--accent)" aria-hidden="true" />
             <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
               {step === 'done' ? 'Request Submitted' : 'Invite Members'}
             </h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="关闭邀请"
             style={{ padding: 4, borderRadius: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}
           >
-            <X size={16} />
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
 
@@ -114,7 +122,9 @@ export function ProjectInvite({ projectId, projectName, createdBy, onClose }: Pr
                     {invite.code}
                   </span>
                   <button
+                    type="button"
                     onClick={handleCopyLink}
+                    aria-label={copied ? '已复制邀请码' : '复制邀请码'}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       padding: '4px 10px', borderRadius: 4,
@@ -124,7 +134,7 @@ export function ProjectInvite({ projectId, projectName, createdBy, onClose }: Pr
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {copied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+                    {copied ? <><Check size={11} aria-hidden="true" /> Copied</> : <><Copy size={11} aria-hidden="true" /> Copy</>}
                   </button>
                 </div>
 
@@ -134,13 +144,15 @@ export function ProjectInvite({ projectId, projectName, createdBy, onClose }: Pr
 
                 {/* Simulate: member fills in note */}
                 <div style={{ marginBottom: 10 }}>
-                  <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                  <label htmlFor="invite-note" style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
                     Simulate: Member fills in note to join
                   </label>
                   <input
+                    id="invite-note"
+                    name="invite-note"
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    placeholder="e.g. Hi, I'm the frontend developer..."
+                    placeholder="e.g. Hi, I'm the frontend developer…"
                     style={{
                       width: '100%', padding: '8px 10px', borderRadius: 6,
                       border: '1px solid var(--border)', background: 'var(--bg-input)',
@@ -151,6 +163,7 @@ export function ProjectInvite({ projectId, projectName, createdBy, onClose }: Pr
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleAcceptInvite}
                   style={{
                     width: '100%', padding: '8px 16px', borderRadius: 6,

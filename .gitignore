@@ -35,5 +35,11 @@ __pycache__/
 .venv/
 venv/
 
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.lock
+
 # Misc
 *.tsbuildinfo

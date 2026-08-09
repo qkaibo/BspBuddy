@@ -6,7 +6,7 @@ import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { v4 as uuid } from 'uuid'
-import type { Expert, ExpertTeam, ExpertSummonResult, ExpertCreationRequest, ExpertTeamExecution, ExpertTeamPlan, ExpertTeamStep } from '../../lib/expert-types'
+import type { Expert, ExpertBindings, ExpertTeam, ExpertSummonResult, ExpertCreationRequest, ExpertTeamExecution, ExpertTeamPlan, ExpertTeamStep } from '../../lib/expert-types'
 
 const BUILTIN_EXPERTS: Expert[] = [
   {
@@ -141,17 +141,77 @@ function getUserExpertsPath(): string {
 function loadUserExperts(): Expert[] {
   const p = getUserExpertsPath()
   if (!fs.existsSync(p)) return []
-  try { return JSON.parse(fs.readFileSync(p, 'utf-8')) as Expert[] } catch { return [] }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(p, 'utf-8'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
 function saveUserExperts(experts: Expert[]): void {
   fs.writeFileSync(getUserExpertsPath(), JSON.stringify(experts, null, 2), 'utf-8')
 }
 
+function getBindingOverridesPath(): string {
+  return path.join(getDataDir(), 'binding-overrides.json')
+}
+
+function loadBindingOverrides(): Record<string, ExpertBindings> {
+  const p = getBindingOverridesPath()
+  if (!fs.existsSync(p)) return {}
+  try { return JSON.parse(fs.readFileSync(p, 'utf-8')) as Record<string, ExpertBindings> } catch { return {} }
+}
+
+function saveBindingOverrides(overrides: Record<string, ExpertBindings>): void {
+  fs.writeFileSync(getBindingOverridesPath(), JSON.stringify(overrides, null, 2), 'utf-8')
+}
+
+function applyBindingOverride(expert: Expert, overrides: Record<string, ExpertBindings>): Expert {
+  const base = expert.bindings || {
+    sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [],
+  }
+  const override = overrides[expert.id]
+  if (!override) {
+    return expert.bindings ? expert : { ...expert, bindings: base }
+  }
+  return {
+    ...expert,
+    bindings: {
+      sopSkills: override.sopSkills ?? base.sopSkills ?? [],
+      skills: override.skills ?? base.skills ?? [],
+      mcpServers: override.mcpServers ?? base.mcpServers ?? [],
+      knowledgeBases: override.knowledgeBases ?? base.knowledgeBases ?? [],
+      connectors: override.connectors ?? base.connectors ?? [],
+      modelId: override.modelId ?? base.modelId,
+    },
+  }
+}
+
+function bindingKeyForResourceType(resourceType: string): keyof ExpertBindings | null {
+  switch (resourceType) {
+    case 'skill':
+    case 'sop':
+      return 'sopSkills'
+    case 'general_skill':
+      return 'skills'
+    case 'knowledge':
+    case 'knowledge_base':
+      return 'knowledgeBases'
+    case 'mcp':
+      return 'mcpServers'
+    case 'connector':
+      return 'connectors'
+    default:
+      return null
+  }
+}
+
 export const expertService = {
   /** List all experts (builtin + user-created) */
   list(): Expert[] {
-    return [...BUILTIN_EXPERTS, ...loadUserExperts()]
+    const overrides = loadBindingOverrides()
+    return [...BUILTIN_EXPERTS, ...loadUserExperts()].map((e) => applyBindingOverride(e, overrides))
   },
 
   /** List all expert teams */
@@ -354,5 +414,102 @@ export const expertService = {
   /** Test run — placeholder for now */
   testRun(_params: { persona: string; methodology: string; bindings: unknown; message: string }): { response: string } {
     return { response: `Test Run 已调用。\n\n人设: ${_params.persona.slice(0, 100)}...\n消息: ${_params.message}\n\n（完整 Agent Test Run 需要后端 AI 服务支持）` }
+  },
+
+  /**
+   * Import resources onto an expert (local fallback when FastAPI import is unavailable).
+   * Merges resource IDs into ExpertBindings; persists via user-experts or binding-overrides.
+   */
+  importResources(params: {
+    targetAgentId: string
+    sourceAgentId: string
+    resourceType: string
+    resourceIds: string[]
+  }): { status: 'ok' | 'error'; imported: string[]; error?: string } {
+    const key = bindingKeyForResourceType(params.resourceType)
+    if (!key || key === 'modelId') {
+      return { status: 'error', imported: [], error: `不支持的资源类型: ${params.resourceType}` }
+    }
+    if (!params.resourceIds?.length) {
+      return { status: 'error', imported: [], error: '请选择要复制的资源' }
+    }
+
+    // Support FastAPI agent IDs that are not in the local builtin/user catalog:
+    // always persist via binding-overrides (and update user-experts when present).
+    const current = this.getExpert(params.targetAgentId)
+    const overrides = loadBindingOverrides()
+    const empty: ExpertBindings = {
+      sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [],
+    }
+    const base: ExpertBindings = {
+      ...empty,
+      ...(current?.bindings || {}),
+      ...(overrides[params.targetAgentId] || {}),
+    }
+
+    const prev = base[key]
+    const prevIds = Array.isArray(prev) ? prev : []
+    const merged = Array.from(new Set([...prevIds, ...params.resourceIds]))
+    const nextBindings: ExpertBindings = { ...base, [key]: merged }
+
+    const userExperts = loadUserExperts()
+    const idx = userExperts.findIndex((e) => e.id === params.targetAgentId)
+    if (idx >= 0) {
+      userExperts[idx] = { ...userExperts[idx], bindings: nextBindings, updatedAt: Date.now() }
+      saveUserExperts(userExperts)
+    }
+
+    overrides[params.targetAgentId] = nextBindings
+    saveBindingOverrides(overrides)
+
+    return { status: 'ok', imported: params.resourceIds }
+  },
+
+  /** Read binding overrides (including FastAPI agent ids) for UI merge */
+  getBindingOverrides(): Record<string, ExpertBindings> {
+    return loadBindingOverrides()
+  },
+
+  /** Remove resource IDs from an expert's bindings (local / override store). */
+  unbindResources(params: {
+    targetAgentId: string
+    resourceType: string
+    resourceIds: string[]
+  }): { status: 'ok' | 'error'; removed: string[]; error?: string } {
+    const key = bindingKeyForResourceType(params.resourceType)
+    if (!key || key === 'modelId') {
+      return { status: 'error', removed: [], error: `不支持的资源类型: ${params.resourceType}` }
+    }
+    const removeSet = new Set(params.resourceIds || [])
+    if (removeSet.size === 0) {
+      return { status: 'error', removed: [], error: '请选择要移除的资源' }
+    }
+
+    const overrides = loadBindingOverrides()
+    const empty: ExpertBindings = {
+      sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [],
+    }
+    const current = this.getExpert(params.targetAgentId)
+    const base: ExpertBindings = {
+      ...empty,
+      ...(current?.bindings || {}),
+      ...(overrides[params.targetAgentId] || {}),
+    }
+    const prev = base[key]
+    const prevIds = Array.isArray(prev) ? prev : []
+    const nextIds = prevIds.filter((id) => !removeSet.has(id))
+    const removed = prevIds.filter((id) => removeSet.has(id))
+    const nextBindings: ExpertBindings = { ...base, [key]: nextIds }
+
+    const userExperts = loadUserExperts()
+    const idx = userExperts.findIndex((e) => e.id === params.targetAgentId)
+    if (idx >= 0) {
+      userExperts[idx] = { ...userExperts[idx], bindings: nextBindings, updatedAt: Date.now() }
+      saveUserExperts(userExperts)
+    }
+    overrides[params.targetAgentId] = nextBindings
+    saveBindingOverrides(overrides)
+
+    return { status: 'ok', removed }
   },
 }

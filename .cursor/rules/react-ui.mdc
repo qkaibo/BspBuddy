@@ -27,6 +27,21 @@ await ipc.invoke(IPC_CHANNELS.SKILL_LIST)
 
 ## UI 技术栈
 
-- Tailwind 工具类
-- 图标：`lucide-react`
-- 新功能面板：先加组件 → 接入 Sidebar + `activeView` → 再补逻辑
+- 令牌与 craft 原语：`src/renderer/index.css`（`.bb-*`）
+- 图标：`lucide-react`，线型 `strokeWidth={1.75}`；功能入口放 `.bb-icon-tile`
+- 新功能面板：先加组件 → 用 `PanelChrome` / `ContentShell` → 接入 Sidebar + `activeView` → 再补逻辑
+
+## 视觉系统（新增页面必须遵守）
+
+事实来源：**[`DESIGN.md`](../../DESIGN.md)**（冷静工程台面）。实现前对照其 Craft primitives 表。
+
+| 要求 | 做法 |
+|------|------|
+| 二级面板壳 | `PanelChrome`，勿手写一套顶栏/Tab |
+| 主内容区 | 偏白纸；氛围色留给侧栏/壳层 |
+| 分区 | 色差 + 轻阴影，少用 1px 实线硬切 |
+| Composer | `.bb-composer-float` 悬浮，勿贴死底边整条 |
+| 侧栏列表 | 紧凑行高（`.bb-session-item` 量级），勿高大卡片堆 |
+| 强调色 | 仅 `#2563eb`；禁止另起主色或蓝紫渐变营销风 |
+
+完整 UX/布局原则见 [`docs/reference/ref-001-ui-design-principles.md`](../../docs/reference/ref-001-ui-design-principles.md) 与 [`ui-design-principles.mdc`](./ui-design-principles.mdc)；数据与选择器可用性见 [`ux-first.mdc`](./ux-first.mdc)。

@@ -114,13 +114,15 @@ export function UploadZone({ files, onAdd, onRemove, workspacePath, onSelectWork
                 {f.name}
               </span>
               <button
+                type="button"
                 onClick={() => onRemove(f.id)}
+                aria-label={`移除附件 ${f.name}`}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
                   padding: 1, display: 'flex', color: 'inherit',
                 }}
               >
-                <X size={11} />
+                <X size={11} aria-hidden="true" />
               </button>
             </div>
           ))}
@@ -150,7 +152,7 @@ export function UploadZone({ files, onAdd, onRemove, workspacePath, onSelectWork
             onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
             <FolderOpen size={13} />
-            Browse workspace files...
+            Browse workspace files…
           </button>
         </div>
       )}

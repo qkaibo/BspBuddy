@@ -41,7 +41,10 @@ export function useAgent() {
 
   const sendMessage = useCallback(async (
     content: string,
-    context?: { currentFile?: string; openFiles?: string[] },
+    modelId?: string,
+    expertId?: string,
+    expertInfo?: { name: string; title: string; methodology: string; toolChain: string[]; persona: string },
+    activeResources?: { id: string; type: string; name: string }[],
   ): Promise<{
     artifacts?: Artifact[]
   }> => {
@@ -50,7 +53,7 @@ export function useAgent() {
     setIsProcessing(true)
 
     try {
-      const response = (await ipc.invoke(IPC_CHANNELS.EXECUTE_TASK, content, mode, context)) as {
+      const response = (await ipc.invoke(IPC_CHANNELS.EXECUTE_TASK, content, mode, modelId, { expertId, expertInfo, activeResources })) as {
         plan?: TaskPlan
         content?: string
         artifacts?: Artifact[]

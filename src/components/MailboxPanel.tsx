@@ -11,6 +11,8 @@ import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { AgentMailbox, AgentMail, MailFolder, TimeGroup } from '../lib/mailbox-types'
 import { MAILBOX_STATUS_LABELS, TIME_GROUP_LABELS, getTimeGroup } from '../lib/mailbox-types'
+import { ConfirmDialog } from './ConfirmDialog'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -31,6 +33,7 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
   const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
   const [confirmAction, setConfirmAction] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => { loadStatus() }, [])
 
@@ -161,10 +164,10 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
   // Not activated state
   if (!mailbox) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', height: '100%' }}>
+      <div style={panelRootStyle()}>
         <div style={headerStyle}>
-          {onClose && <button onClick={onClose} style={backBtnStyle}><ChevronLeft size={16} /></button>}
-          <Mail size={18} color="var(--accent)" />
+          {onClose && <button type="button" onClick={onClose} aria-label="关闭邮箱" style={backBtnStyle}><ChevronLeft size={16} aria-hidden="true" /></button>}
+          <Mail size={18} color="var(--accent)" aria-hidden="true" />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>My Mailbox</span>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40 }}>
@@ -193,11 +196,11 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', height: '100%' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={headerStyle}>
-        {onClose && <button onClick={onClose} style={backBtnStyle}><ChevronLeft size={16} /></button>}
-        <Mail size={18} color="var(--accent)" />
+        {onClose && <button type="button" onClick={onClose} aria-label="关闭邮箱" style={backBtnStyle}><ChevronLeft size={16} aria-hidden="true" /></button>}
+        <Mail size={18} color="var(--accent)" aria-hidden="true" />
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>My Mailbox</span>
         <span style={{
           marginLeft: 8, fontSize: 10, padding: '2px 6px', borderRadius: 8,
@@ -237,12 +240,14 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-input)', borderRadius: 6, padding: '4px 10px' }}>
-          <Search size={13} color="var(--text-tertiary)" />
+          <Search size={13} color="var(--text-tertiary)" aria-hidden="true" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Search..."
+            name="mail-search"
+            aria-label="搜索邮件"
+            placeholder="Search…"
             style={{
               width: 160, background: 'none', border: 'none', outline: 'none',
               fontSize: 12, color: 'var(--text-primary)', fontFamily: 'inherit',
@@ -329,14 +334,20 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => handleInject(selectedMail.id)} title="Add to conversation" style={actionBtnStyle}>
-                    <MessageSquare size={13} /> Add to Chat
+                  <button type="button" onClick={() => handleInject(selectedMail.id)} title="Add to conversation" aria-label="添加到对话" style={actionBtnStyle}>
+                    <MessageSquare size={13} aria-hidden="true" /> Add to Chat
                   </button>
-                  <button onClick={() => handleToggleRead(selectedMail.id, !selectedMail.readAt)} title="Toggle read" style={actionBtnStyle}>
-                    {selectedMail.readAt ? <Circle size={13} /> : <CheckCircle size={13} />}
+                  <button type="button" onClick={() => handleToggleRead(selectedMail.id, !selectedMail.readAt)} title="Toggle read" aria-label={selectedMail.readAt ? '标为未读' : '标为已读'} style={actionBtnStyle}>
+                    {selectedMail.readAt ? <Circle size={13} aria-hidden="true" /> : <CheckCircle size={13} aria-hidden="true" />}
                   </button>
-                  <button onClick={() => handleDelete(selectedMail.id)} title="Delete" style={{ ...actionBtnStyle, color: 'var(--danger)' }}>
-                    <Trash2 size={13} />
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(selectedMail.id)}
+                    title="Delete"
+                    aria-label="删除邮件"
+                    style={{ ...actionBtnStyle, color: 'var(--danger)' }}
+                  >
+                    <Trash2 size={13} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -401,7 +412,7 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
                     <textarea
                       value={composeBody}
                       onChange={(e) => setComposeBody(e.target.value)}
-                      placeholder="Write a reply..."
+                      placeholder="Write a reply…" aria-label="回复内容"
                       rows={3}
                       style={{
                         width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)',
@@ -430,6 +441,18 @@ export function MailboxPanel({ onClose, onInjectToChat, onActivate }: Props) {
           )}
         </div>
       </div>
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="确认删除邮件"
+          message="删除后该邮件将不可恢复，确定要删除吗？"
+          onConfirm={() => {
+            const id = confirmDeleteId
+            setConfirmDeleteId(null)
+            void handleDelete(id)
+          }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
     </div>
   )
 }

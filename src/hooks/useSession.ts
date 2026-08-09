@@ -12,6 +12,8 @@ export interface SessionData {
   workspace?: string
   mode?: string
   modelId?: string
+  expertContext?: { expert?: { id: string; name: string; title?: string; methodology?: string; toolChain?: string[]; persona?: string; bindings?: { modelId?: string } }; sessionId?: string }
+  activeResources?: { id: string; type: string; name: string }[]
 }
 
 const ipc = createIpcClient()
@@ -25,6 +27,8 @@ export function useSession() {
     workspace?: string,
     mode?: string,
     modelId?: string,
+    expertContext?: SessionData['expertContext'],
+    activeResources?: SessionData['activeResources'],
   ) => {
     const session: SessionData = {
       id,
@@ -35,6 +39,8 @@ export function useSession() {
       workspace,
       mode,
       modelId,
+      expertContext,
+      activeResources,
     }
     try {
       await ipc.invoke(IPC_CHANNELS.SESSION_SAVE, session)

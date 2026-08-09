@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高级组件 - 反-slop设计系统</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing: border-box; }
+
+    :root, [data-theme="light"] {
+      --color-primary: #1a1a1a;
+      --color-secondary: #666;
+      --color-accent: #0d9488;
+      --color-bg: #fafafa;
+      --color-surface: #fff;
+      --color-border: #e5e5e5;
+      --color-success: #16a34a;
+      --color-warning: #d97706;
+      --color-error: #dc2626;
+      --color-info: #2563eb;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+    }
+
+    [data-theme="dark"] {
+      --color-primary: #fafafa;
+      --color-secondary: #a1a1aa;
+      --color-accent: #2dd4bf;
+      --color-bg: #0a0a0a;
+      --color-surface: #171717;
+      --color-border: #262626;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      color: var(--color-primary);
+      line-height: 1.6;
+    }
+
+    /* 导航 */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .nav-brand {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .nav-links { display: flex; gap: var(--space-8); }
+
+    .nav-links a {
+      font-size: 1rem;
+      color: var(--color-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--color-primary); }
+
+    .theme-toggle {
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: var(--color-bg);
+      transform: translateY(-1px);
+    }
+
+    /* 主内容 */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-8);
+    }
+
+    /* 区块 */
+    .section {
+      margin-bottom: var(--space-16);
+    }
+
+    .section-header {
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      border-bottom: 2px solid var(--color-border);
+    }
+
+    .section-header h2 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+
+    .section-header p {
+      font-size: 1rem;
+      color: var(--color-secondary);
+    }
+
+    /* 按钮网格 */
+    .button-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+
+    .btn {
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--color-primary);
+    }
+
+    .btn-primary:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    /* 模态框 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: var(--space-8);
+      max-width: 500px;
+      width: 90%;
+      transform: translateY(20px);
+      transition: transform 0.2s;
+    }
+
+    .modal-overlay.active .modal {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-4);
+    }
+
+    .modal-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--color-secondary);
+      transition: color 0.2s;
+    }
+
+    .modal-close:hover { color: var(--color-primary); }
+
+    .modal-body {
+      font-size: 1rem;
+      line-height: 1.75;
+      color: var(--color-secondary);
+      margin-bottom: var(--space-6);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-3);
+    }
+
+    /* Toast 通知 */
+    .toast-container {
+      position: fixed;
+      top: var(--space-4);
+      right: var(--space-4);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .toast {
+      padding: var(--space-4) var(--space-6);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      transform: translateX(120%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .toast.show {
+      transform: translateX(0);
+    }
+
+    .toast-icon {
+      font-size: 1.25rem;
+    }
+
+    .toast-success { border-left: 4px solid var(--color-success); }
+    .toast-warning { border-left: 4px solid var(--color-warning); }
+    .toast-error { border-left: 4px solid var(--color-error); }
+    .toast-info { border-left: 4px solid var(--color-info); }
+
+    .toast-message {
+      font-size: 0.875rem;
+      flex: 1;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+      color: var(--color-secondary);
+    }
+
+    /* 标签页 */
+    .tabs {
+      margin-bottom: var(--space-6);
+    }
+
+    .tab-list {
+      display: flex;
+      border-bottom: 2px solid var(--color-border);
+      margin-bottom: var(--space-4);
+    }
+
+    .tab-button {
+      padding: var(--space-3) var(--space-4);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      color: var(--color-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: -2px;
+    }
+
+    .tab-button:hover {
+      color: var(--color-primary);
+    }
+
+    .tab-button.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+      font-weight: 500;
+    }
+
+    .tab-panel {
+      display: none;
+      padding: var(--space-4);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* 下拉菜单 */
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: var(--space-2);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      min-width: 200px;
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: all 0.2s;
+    }
+
+    .dropdown-menu.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    .dropdown-item {
+      display: block;
+      width: 100%;
+      padding: var(--space-3) var(--space-4);
+      background: none;
+      border: none;
+      text-align: left;
+      font-size: 0.875rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      color: var(--color-primary);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .dropdown-item:hover {
+      background: var(--color-bg);
+    }
+
+    .dropdown-item:first-child {
+      border-radius: 8px 8px 0 0;
+    }
+
+    .dropdown-item:last-child {
+      border-radius: 0 0 8px 8px;
+    }
+
+    /* 工具提示 */
+    .tooltip-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    .tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-8px);
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-primary);
+      color: #fff;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s;
+    }
+
+    .tooltip-container:hover .tooltip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-4px);
+    }
+
+    .tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 4px solid transparent;
+      border-top-color: var(--color-primary);
+    }
+
+    /* 面包屑 */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.875rem;
+      margin-bottom: var(--space-4);
+    }
+
+    .breadcrumb a {
+      color: var(--color-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .breadcrumb a:hover { color: var(--color-primary); }
+
+    .breadcrumb-separator {
+      color: var(--color-border);
+    }
+
+    .breadcrumb .current {
+      color: var(--color-primary);
+      font-weight: 500;
+    }
+
+    /* 分页 */
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .page-button {
+      min-width: 36px;
+      height: 36px;
+      padding: 0 var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      color: var(--color-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-button:hover {
+      background: var(--color-bg);
+      border-color: var(--color-primary);
+    }
+
+    .page-button.active {
+      background: var(--color-primary);
+      color: #fff;
+      border-color: var(--color-primary);
+    }
+
+    .page-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+      .main { padding: var(--space-4); }
+      .tab-list { overflow-x: auto; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航 -->
+  <nav class="navbar">
+    <div class="nav-brand">高级组件</div>
+    <div class="nav-links">
+      <a href="#modal">模态框</a>
+      <a href="#toast">Toast</a>
+      <a href="#tabs">标签页</a>
+      <a href="#dropdown">下拉菜单</a>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()">🌙 暗色模式</button>
+  </nav>
+
+  <!-- Toast 容器 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- 主内容 -->
+  <div class="main">
+    <!-- 标题 -->
+    <div class="section">
+      <h1 style="font-family: 'Noto Serif SC', serif; font-size: 2.5rem; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem;">
+        高级组件
+      </h1>
+      <p style="font-size: 1.125rem; color: var(--color-secondary); max-width: 600px;">
+        模态框、Toast 通知、标签页、下拉菜单、工具提示等高级组件，全部遵循反-slop 设计规范。
+      </p>
+    </div>
+
+    <!-- 模态框 -->
+    <div class="section" id="modal">
+      <div class="section-header">
+        <h2>模态框（Modal）</h2>
+        <p>对话框、确认框、表单弹窗</p>
+      </div>
+      <div class="button-grid">
+        <button class="btn btn-primary" onclick="openModal('basic')">基础模态框</button>
+        <button class="btn btn-primary" onclick="openModal('confirm')">确认框</button>
+        <button class="btn btn-primary" onclick="openModal('form')">表单弹窗</button>
+      </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div class="section" id="toast">
+      <div class="section-header">
+        <h2>Toast 通知</h2>
+        <p>成功、警告、错误、信息四种类型</p>
+      </div>
+      <div class="button-grid">
+        <button class="btn btn-primary" onclick="showToast('success', '操作成功！')">成功通知</button>
+        <button class="btn btn-primary" onclick="showToast('warning', '请注意检查输入！')">警告通知</button>
+        <button class="btn btn-primary" onclick="showToast('error', '操作失败，请重试！')">错误通知</button>
+        <button class="btn btn-primary" onclick="showToast('info', '有新消息通知')">信息通知</button>
+      </div>
+    </div>
+
+    <!-- 标签页 -->
+    <div class="section" id="tabs">
+      <div class="section-header">
+        <h2>标签页（Tabs）</h2>
+        <p>内容切换、设置面板</p>
+      </div>
+      <div class="tabs">
+        <div class="tab-list">
+          <button class="tab-button active" onclick="switchTab(0, this)">基本信息</button>
+          <button class="tab-button" onclick="switchTab(1, this)">安全设置</button>
+          <button class="tab-button" onclick="switchTab(2, this)">通知偏好</button>
+        </div>
+        <div class="tab-panel active">
+          <h3 style="font-family: 'Noto Sans SC', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">基本信息</h3>
+          <p style="color: var(--color-secondary); line-height: 1.75;">
+            在这里可以修改你的个人资料，包括姓名、邮箱、头像等基本信息。
+          </p>
+        </div>
+        <div class="tab-panel">
+          <h3 style="font-family: 'Noto Sans SC', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">安全设置</h3>
+          <p style="color: var(--color-secondary); line-height: 1.75;">
+            修改密码、启用两步验证、管理登录设备等安全相关设置。
+          </p>
+        </div>
+        <div class="tab-panel">
+          <h3 style="font-family: 'Noto Sans SC', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">通知偏好</h3>
+          <p style="color: var(--color-secondary); line-height: 1.75;">
+            设置邮件通知、推送通知、短信通知等通知方式的开关和频率。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下拉菜单 -->
+    <div class="section" id="dropdown">
+      <div class="section-header">
+        <h2>下拉菜单（Dropdown）</h2>
+        <p>操作菜单、选择列表</p>
+      </div>
+      <div class="dropdown" id="dropdownDemo">
+        <button class="btn btn-primary" onclick="toggleDropdown()">操作菜单 ▼</button>
+        <div class="dropdown-menu" id="dropdownMenu">
+          <button class="dropdown-item" onclick="alert('编辑')">编辑</button>
+          <button class="dropdown-item" onclick="alert('复制')">复制</button>
+          <button class="dropdown-item" onclick="alert('删除')">删除</button>
+          <button class="dropdown-item" onclick="alert('分享')">分享</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 工具提示 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>工具提示（Tooltip）</h2>
+        <p>悬停提示、帮助信息</p>
+      </div>
+      <div class="button-grid">
+        <div class="tooltip-container">
+          <button class="btn btn-secondary">悬停查看提示</button>
+          <div class="tooltip">这是一个工具提示</div>
+        </div>
+        <div class="tooltip-container">
+          <button class="btn btn-secondary">点击不会保存</button>
+          <div class="tooltip">此操作不可撤销</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 面包屑 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>面包屑（Breadcrumb）</h2>
+        <p>导航路径、层级指示</p>
+      </div>
+      <div class="breadcrumb">
+        <a href="#">首页</a>
+        <span class="breadcrumb-separator">/</span>
+        <a href="#">设置</a>
+        <span class="breadcrumb-separator">/</span>
+        <a href="#">账户</a>
+        <span class="breadcrumb-separator">/</span>
+        <span class="current">安全设置</span>
+      </div>
+    </div>
+
+    <!-- 分页 -->
+    <div class="section">
+      <div class="section-header">
+        <h2>分页（Pagination）</h2>
+        <p>数据分页、页面导航</p>
+      </div>
+      <div class="pagination">
+        <button class="page-button" disabled>‹</button>
+        <button class="page-button active">1</button>
+        <button class="page-button">2</button>
+        <button class="page-button">3</button>
+        <button class="page-button">4</button>
+        <button class="page-button">5</button>
+        <button class="page-button">›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框 -->
+  <div class="modal-overlay" id="modalOverlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal" id="modalBasic">
+      <div class="modal-header">
+        <div class="modal-title">提示</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        这是一个基础模态框示例。点击遮罩层或关闭按钮可以关闭。
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="closeModal()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 主题切换
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.querySelector('.theme-toggle').textContent = 
+        next === 'dark' ? '☀️ 亮色模式' : '🌙 暗色模式';
+    }
+
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.querySelector('.theme-toggle').textContent = '☀️ 亮色模式';
+    }
+
+    // 模态框
+    function openModal(type) {
+      const overlay = document.getElementById('modalOverlay');
+      overlay.classList.add('active');
+    }
+
+    function closeModal() {
+      const overlay = document.getElementById('modalOverlay');
+      overlay.classList.remove('active');
+    }
+
+    function closeModalOnOverlay(event) {
+      if (event.target === event.currentTarget) {
+        closeModal();
+      }
+    }
+
+    // Toast 通知
+    function showToast(type, message) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.innerHTML = `
+        <span class="toast-icon">${type === 'success' ? '✅' : type === 'warning' ? '⚠️' : type === 'error' ? '❌' : 'ℹ️'}</span>
+        <span class="toast-message">${message}</span>
+        <button class="toast-close" onclick="removeToast(this.parentElement)">×</button>
+      `;
+      container.appendChild(toast);
+
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => removeToast(toast), 3000);
+    }
+
+    function removeToast(toast) {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }
+
+    // 标签页
+    function switchTab(index, button) {
+      const buttons = document.querySelectorAll('.tab-button');
+      const panels = document.querySelectorAll('.tab-panel');
+      
+      buttons.forEach(btn => btn.classList.remove('active'));
+      panels.forEach(panel => panel.classList.remove('active'));
+      
+      button.classList.add('active');
+      panels[index].classList.add('active');
+    }
+
+    // 下拉菜单
+    function toggleDropdown() {
+      const menu = document.getElementById('dropdownMenu');
+      menu.classList.toggle('show');
+    }
+
+    document.addEventListener('click', (event) => {
+      const dropdown = document.getElementById('dropdownDemo');
+      if (!dropdown.contains(event.target)) {
+        document.getElementById('dropdownMenu').classList.remove('show');
+      }
+    });
+  </script>
+</body>
+</html>

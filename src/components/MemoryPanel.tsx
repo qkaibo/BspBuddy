@@ -6,6 +6,8 @@ import {
 import { createIpcClient } from '../lib/client'
 import type { MemoryEntry, MemoryType, ConversationSummary } from '../lib/memory-types'
 import { MEMORY_TYPE_LABELS, MEMORY_TYPE_COLORS } from '../lib/memory-types'
+import { ConfirmDialog } from './ConfirmDialog'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -44,6 +46,7 @@ export function MemoryPanel({ onClose }: Props) {
   const [searching, setSearching] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [copiedPrompt, setCopiedPrompt] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     loadEntries()
@@ -155,7 +158,7 @@ export function MemoryPanel({ onClose }: Props) {
     filter === 'all' ? entries : entries.filter((e) => e.type === filter)
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -165,13 +168,16 @@ export function MemoryPanel({ onClose }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Toggle */}
           <button
+            type="button"
             onClick={handleToggle}
             style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: enabled ? 'var(--success)' : 'var(--text-tertiary)' }}
             title={enabled ? '关闭记忆功能' : '开启记忆功能'}
+            aria-label={enabled ? '关闭记忆功能' : '开启记忆功能'}
+            aria-pressed={enabled}
           >
-            {enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+            {enabled ? <ToggleRight size={20} aria-hidden="true" /> : <ToggleLeft size={20} aria-hidden="true" />}
           </button>
-          <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+          <button type="button" onClick={onClose} aria-label="关闭记忆面板" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
         </div>
       </div>
 
@@ -220,21 +226,27 @@ export function MemoryPanel({ onClose }: Props) {
 
       {/* Edit dialog overlay */}
       {showEditDialog && (
-        <div style={{
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-overlay="true"
+          style={{
           position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overscrollBehavior: 'contain',
         }}>
           <div style={{
             background: 'var(--bg-card)', borderRadius: 12, padding: 20, width: '85%', maxWidth: 420,
             border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
+            overscrollBehavior: 'contain',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <MessageSquare size={14} color="var(--accent)" />
+                <MessageSquare size={14} color="var(--accent)" aria-hidden="true" />
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>对话式编辑</span>
               </div>
-              <button onClick={() => setShowEditDialog(false)} style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
-                <X size={16} />
+              <button type="button" onClick={() => setShowEditDialog(false)} aria-label="关闭编辑" style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
@@ -245,7 +257,7 @@ export function MemoryPanel({ onClose }: Props) {
               value={editInput}
               onChange={(e) => setEditInput(e.target.value)}
               onKeyDown={handleEditKeyDown}
-              placeholder="输入指令..."
+              placeholder="输入指令…"
               rows={3}
               autoFocus
               style={{
@@ -284,21 +296,27 @@ export function MemoryPanel({ onClose }: Props) {
 
       {/* Import flow overlay */}
       {showImportFlow && (
-        <div style={{
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-overlay="true"
+          style={{
           position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overscrollBehavior: 'contain',
         }}>
           <div style={{
             background: 'var(--bg-card)', borderRadius: 12, padding: 20, width: '90%', maxWidth: 480,
             border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
+            overscrollBehavior: 'contain',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Download size={14} color="var(--accent)" />
+                <Download size={14} color="var(--accent)" aria-hidden="true" />
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>导入记忆</span>
               </div>
-              <button onClick={closeImportFlow} style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
-                <X size={16} />
+              <button type="button" onClick={closeImportFlow} aria-label="关闭导入" style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
 
@@ -371,7 +389,7 @@ export function MemoryPanel({ onClose }: Props) {
                 <textarea
                   value={importPastedContent}
                   onChange={(e) => setImportPastedContent(e.target.value)}
-                  placeholder="粘贴其他 AI 返回的 JSON 或文本..."
+                  placeholder="粘贴其他 AI 返回的 JSON 或文本…"
                   rows={8}
                   autoFocus
                   style={{
@@ -430,12 +448,14 @@ export function MemoryPanel({ onClose }: Props) {
       <div style={{ padding: '8px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-input)', borderRadius: 6, padding: '6px 10px', flex: 1 }}>
-            <Search size={12} color="var(--text-tertiary)" />
+            <Search size={12} color="var(--text-tertiary)" aria-hidden="true" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearchHistory()}
-              placeholder="搜索会话历史（如：上周做过什么）..."
+              name="memory-search"
+              aria-label="搜索会话历史"
+              placeholder="搜索会话历史（如：上周做过什么）…"
               style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 11, color: 'var(--text-primary)', fontFamily: 'inherit' }}
             />
           </div>
@@ -524,7 +544,7 @@ export function MemoryPanel({ onClose }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                   <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
                     来源: {entry.source.slice(0, 30)}
-                    {entry.source.length > 30 ? '...' : ''}
+                    {entry.source.length > 30 ? '…' : ''}
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
                     置信度: {Math.round(entry.confidence * 100)}%
@@ -532,14 +552,16 @@ export function MemoryPanel({ onClose }: Props) {
                 </div>
               </div>
               <button
-                onClick={() => handleDelete(entry.id)}
+                type="button"
+                onClick={() => setConfirmDeleteId(entry.id)}
                 style={{
                   padding: 2, background: 'none', border: 'none', cursor: 'pointer',
                   color: 'var(--text-tertiary)', flexShrink: 0,
                 }}
                 title="删除"
+                aria-label="删除记忆"
               >
-                <X size={14} />
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
           ))}
@@ -547,13 +569,28 @@ export function MemoryPanel({ onClose }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div style={{
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
           position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
           padding: '8px 16px', borderRadius: 8, background: 'var(--text-primary)', color: '#fff',
           fontSize: 12, boxShadow: 'var(--shadow-lg)', zIndex: 100,
         }}>
           {toast}
         </div>
+      )}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="确认删除记忆"
+          message="删除后该条记忆将不可恢复，确定要删除吗？"
+          onConfirm={() => {
+            const id = confirmDeleteId
+            setConfirmDeleteId(null)
+            void handleDelete(id)
+          }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
       )}
     </div>
   )

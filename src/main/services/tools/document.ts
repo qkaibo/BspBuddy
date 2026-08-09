@@ -9,6 +9,7 @@ const generateReportTool: Tool = {
   description:
     'Generate a document (report, article, memo, etc.) in Markdown format. Provide title and content.',
   category: 'document',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'title', type: 'string', description: 'Document title', required: true },
     { name: 'content', type: 'string', description: 'Document body content in Markdown format', required: true },
@@ -50,6 +51,7 @@ const generateCsvTool: Tool = {
   description:
     'Generate a CSV file from structured data. Provide headers as an array of strings and rows as an array of arrays.',
   category: 'data',
+  modes: ['craft', 'plan', 'design'],
   parameters: [
     { name: 'fileName', type: 'string', description: 'Output CSV file name (without extension)', required: true },
     { name: 'headers', type: 'array', description: 'Column headers', required: true },

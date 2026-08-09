@@ -28,6 +28,7 @@ import {
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { AssistantState, AssistantMessage, IMPlatform, IMConnectionStatus } from '../lib/im-types'
+import { panelRootStyle } from '../lib/panel-layout'
 import {
   IM_PLATFORM_LABELS,
   IM_PLATFORMS,
@@ -101,7 +102,7 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
 
   if (loading) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, background: 'var(--bg-root)' }}>
+      <div style={panelRootStyle({ alignItems: 'center', justifyContent: 'center', padding: 40 })}>
         <Loader size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)' }} />
       </div>
     )
@@ -109,7 +110,7 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
 
   if (error) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, background: 'var(--bg-root)', gap: 12 }}>
+      <div style={panelRootStyle({ alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 })}>
         <XCircle size={32} color="var(--danger)" />
         <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{error}</span>
         <button
@@ -127,7 +128,7 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -165,7 +166,7 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
           }}>
             <Loader size={14} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)' }} />
             <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
-              正在执行远程任务...
+              正在执行远程任务…
             </span>
           </div>
         )}
@@ -177,11 +178,13 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
             display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 160,
             background: 'var(--bg-input)', borderRadius: 6, padding: '5px 10px',
           }}>
-            <Search size={12} color="var(--text-tertiary)" />
+            <Search size={12} color="var(--text-tertiary)" aria-hidden="true" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索历史记录..."
+              name="assistant-search"
+              aria-label="搜索历史记录"
+              placeholder="搜索历史记录…"
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
                 fontSize: 11, color: 'var(--text-primary)', fontFamily: 'inherit',
@@ -191,6 +194,7 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
 
           {/* Platform filter */}
           <select
+            aria-label="按平台筛选"
             value={selectedPlatform}
             onChange={(e) => setSelectedPlatform(e.target.value as IMPlatform | 'all')}
             style={{
@@ -222,14 +226,16 @@ export function AssistantPanel({ onNavigateToSettings }: Props) {
 
           {/* Refresh */}
           <button
+            type="button"
             onClick={loadState}
             style={{
               padding: 4, borderRadius: 4, border: 'none', background: 'transparent',
               cursor: 'pointer', color: 'var(--text-tertiary)',
             }}
             title="刷新"
+            aria-label="刷新"
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={13} aria-hidden="true" />
           </button>
         </div>
       </div>

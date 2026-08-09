@@ -27,7 +27,7 @@
 | 16 | [pricing](../../docs/plans/16-pricing.md) | Pricing, Credits | P3 | ❌ 待开发 | ✅ 修复 |
 | 17 | [data-settings](../../docs/plans/17-data-settings.md) | Data, Setting | P3 | ❌ 待开发 | ✅ 修复 |
 | 18 | [installation](../../docs/plans/18-installation.md) | Installation-Win-Guide, Installation-Mac-Guide | P3 | ❌ 待开发 | ✅ 修复 |
-| 19 | [expert-management](../../docs/plans/19-expert-management.md) | ✦ StaffDeck: prd-001 Agent 管理, prd-014 开放广场 | P3 | 🟡 开发中 | — |
+| 19 | [expert-management](../../docs/plans/agents-01-expert-management.md) | ✦ StaffDeck: prd-001 Agent 管理, prd-014 开放广场 | P3 | 🟡 开发中 | — |
 
 ## 修复记录
 
@@ -75,7 +75,7 @@
 ## 开发优先级建议
 
 1. **P0-P2 已完成** → 不需要额外开发
-2. **P3 第一批** → 06 插件生态 (Skills/MCP/Expert) + 19 专家管理 (StaffDeck 融合) + 05 远程助理 (Claw)
+2. **P3 第一批** → 06 插件生态 (Skills/MCP/Expert) + agents-01 专家管理 (StaffDeck 融合) + 05 远程助理 (Claw)
 3. **P3 第二批** → 07 项目协作 + 08 连接器 + 09 自动化
 4. **P3 第三批** → 10 权限 + 11 记忆 + 14 灵感
 5. **P3 第四批** → 12 创意画布 + 13 邮箱 + 15 企业智能体

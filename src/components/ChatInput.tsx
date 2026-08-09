@@ -30,20 +30,24 @@ export function ChatInput({ onSend, disabled }: Props) {
       <div className="flex items-end gap-2 bg-secondary rounded-lg p-2">
         <textarea
           ref={inputRef}
+          name="chat-message"
+          aria-label="消息输入"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Describe your task..."
+          placeholder="Describe your task…"
           disabled={disabled}
           rows={1}
-          className="flex-1 bg-transparent resize-none outline-none text-sm placeholder:text-muted-foreground disabled:opacity-50 min-h-[24px] max-h-[120px] py-1 px-2"
+          className="flex-1 bg-transparent resize-none outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-sm text-sm placeholder:text-muted-foreground disabled:opacity-50 min-h-[24px] max-h-[120px] py-1 px-2"
         />
         <button
+          type="button"
           onClick={handleSend}
           disabled={disabled || !input.trim()}
+          aria-label="发送消息"
           className="p-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
         >
-          <Send className="w-4 h-4" />
+          <Send className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
     </div>

@@ -13,6 +13,7 @@ export interface ExpertBindings {
   knowledgeBases: string[]
   connectors: string[]
   modelId?: string
+  expertModelCatalogId?: string
 }
 
 // ---------- Expert ----------

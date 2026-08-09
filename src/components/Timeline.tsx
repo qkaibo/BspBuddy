@@ -33,7 +33,7 @@ function getStatusLabel(status: string) {
   switch (status) {
     case 'pending': return 'Waiting'
     case 'ready': return 'Ready'
-    case 'running': return 'Running...'
+    case 'running': return 'Running…'
     case 'completed': return 'Done'
     case 'failed': return 'Failed'
     case 'skipped': return 'Skipped'
@@ -52,24 +52,28 @@ function StepRow({ step }: { step: TaskStep }) {
   const duration = step.completedAt && step.startedAt
     ? `${((step.completedAt - step.startedAt) / 1000).toFixed(1)}s`
     : step.startedAt
-    ? 'running...'
+    ? 'running…'
     : ''
 
   return (
     <div>
-      <div
+      <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-label={`${expanded ? '折叠' : '展开'}步骤：${step.description}`}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
           padding: '6px 0', cursor: 'pointer', fontSize: 12,
           color: 'var(--text-secondary)',
+          background: 'none', border: 'none', fontFamily: 'inherit', textAlign: 'left',
         }}
       >
         {getStatusIcon(step.status)}
         <span style={{ flex: 1 }}>{step.description}</span>
         {duration && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{duration}</span>}
-        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-      </div>
+        {expanded ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+      </button>
 
       {expanded && (
         <div style={{

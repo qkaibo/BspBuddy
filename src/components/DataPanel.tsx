@@ -7,6 +7,7 @@ import { ArrowLeft, Copy, Download, Link2Off, Trash2, RotateCcw, FileText, Archi
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { SharedFile, ArchivedTask } from '../lib/types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -63,13 +64,13 @@ export function DataPanel({ onClose }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       <div style={{
         height: 44, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px',
         background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <button onClick={onClose} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4 }}>
-          <ArrowLeft size={16} color="var(--text-secondary)" />
+        <button type="button" onClick={onClose} aria-label="返回" style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4 }}>
+          <ArrowLeft size={16} color="var(--text-secondary)" aria-hidden="true" />
         </button>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>数据管理</span>
       </div>
@@ -171,15 +172,22 @@ export function DataPanel({ onClose }: Props) {
       </div>
 
       {deleteConfirm && (
-        <div style={{
+        <div
+          role="presentation"
+          data-overlay="true"
+          style={{
           position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(0,0,0,.4)', zIndex: 100,
+          overscrollBehavior: 'contain',
         }} onClick={() => setDeleteConfirm(null)}>
           <div
+            role="alertdialog"
+            aria-modal="true"
             style={{
               background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
               padding: 24, maxWidth: 360, width: '90%',
               boxShadow: 'var(--shadow-xl)',
+              overscrollBehavior: 'contain',
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -234,8 +242,10 @@ function ActionBtn({ icon, title, onClick, danger }: {
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       title={title}
+      aria-label={title}
       style={{
         padding: 5, borderRadius: 4, border: 'none',
         background: 'transparent', cursor: 'pointer',
@@ -243,7 +253,7 @@ function ActionBtn({ icon, title, onClick, danger }: {
         display: 'flex', alignItems: 'center',
       }}
     >
-      {icon}
+      <span aria-hidden="true">{icon}</span>
     </button>
   )
 }

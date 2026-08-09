@@ -6,6 +6,7 @@ import { UploadZone } from './UploadZone'
 import { Timeline } from './Timeline'
 import { PermissionSelector } from './PermissionSelector'
 import { PermissionConfirmModal } from './PermissionConfirmModal'
+import { ConversationContextTags, AddResourceButton, type ActiveResource } from './ConversationContextBar'
 import { usePermission } from '../hooks/usePermission'
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
@@ -27,6 +28,8 @@ interface Props {
   mode: AgentMode
   workspacePath?: string
   modelId: string
+  activeResources: ActiveResource[]
+  onResourcesChange: (resources: ActiveResource[]) => void
   onModeChange: (mode: AgentMode) => void
   onModelChange: (model: ModelOption) => void
   onSend: (text: string) => void
@@ -34,7 +37,11 @@ interface Props {
   onSelectWorkspace: () => void
 }
 
-export function ChatPanel({ messages, activePlan, isProcessing, mode, workspacePath, modelId, onModeChange, onModelChange, onSend, onStop, onSelectWorkspace }: Props) {
+export function ChatPanel({
+  messages, activePlan, isProcessing, mode, workspacePath, modelId,
+  activeResources, onResourcesChange,
+  onModeChange, onModelChange, onSend, onStop, onSelectWorkspace,
+}: Props) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [inputText, setInputText] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -45,6 +52,7 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const { mode: permMode, changeMode: onChangePermMode, pendingRequest, respondToRequest, dismissRequest } = usePermission()
 
@@ -84,6 +92,16 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
       setSlashIndex(0)
     }
   }, [slashQuery !== null, slashCommands.length])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isProcessing])
+
+  useEffect(() => {
+    if (!isProcessing) {
+      textareaRef.current?.focus()
+    }
+  }, [isProcessing])
 
   const selectSlashCommand = useCallback((cmd: SlashCommand) => {
     const text = inputText
@@ -165,8 +183,8 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
   const totalCount = activePlan?.steps.length ?? 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+    <div style={{ flex: 1, minWidth: 0, minHeight: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px 28px' }}>
         {/* Search bar */}
         {searchOpen && (
           <div style={{
@@ -174,22 +192,26 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
             padding: '6px 10px', marginBottom: 12,
             background: 'var(--bg-input)', borderRadius: 6, border: '1px solid var(--accent)',
           }}>
-            <SearchIcon size={13} color="var(--accent)" />
+            <SearchIcon size={13} color="var(--accent)" aria-hidden="true" />
             <input
               autoFocus
+              name="chat-search"
+              aria-label="搜索对话"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in conversation..."
+              placeholder="Search in conversation…"
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
                 fontSize: 12, color: 'var(--text-primary)', fontFamily: 'inherit',
               }}
             />
             <button
+              type="button"
               onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+              aria-label="关闭搜索"
               style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--text-secondary)' }}
             >
-              <X size={13} />
+              <X size={13} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -202,18 +224,18 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
         )}
 
         {messages.map(msg => (
-          <div key={msg.id} className="animate-fade-in" style={{ marginBottom: 20 }}>
+          <div key={msg.id} className="animate-fade-in" style={{ marginBottom: 24 }}>
             {msg.role === 'user' ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <div style={{ maxWidth: '80%', padding: '10px 16px', borderRadius: 'var(--radius-lg)', borderBottomRightRadius: 4, background: 'var(--accent)', color: '#fff', fontSize: 14, lineHeight: 1.5 }}>{msg.content}</div>
+                <div style={{ maxWidth: '80%', padding: '12px 16px', borderRadius: 'var(--radius-lg)', borderBottomRightRadius: 4, background: 'var(--accent)', color: '#fff', fontSize: 14, lineHeight: 1.55 }}>{msg.content}</div>
               </div>
             ) : msg.role === 'assistant' ? (
               <div>
                 {msg.plan && msg.plan.steps.length > 0 && (
                   <div style={{ background: 'var(--accent-light)', borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 10, border: '1px solid rgba(79,110,247,.12)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                      <Sparkles size={13} color="#4f6ef7" />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#4f6ef7' }}>Task Plan</span>
+                      <Sparkles size={13} color="var(--accent)" />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>Task Plan</span>
                     </div>
                     {msg.plan.steps.map(s => (
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -223,13 +245,13 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
                   </div>
                 )}
                 {msg.content && (
-                  <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)', padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4, border: '1px solid var(--border)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-primary)', padding: '12px 16px', background: '#f8fafc', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4, border: '1px solid rgba(15,23,42,0.06)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                 )}
               </div>
             ) : null}
           </div>
         ))}
-        {isProcessing && !activePlan && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 13 }}><Loader2 size={13} style={{ animation: 'spin 2s linear infinite' }} />Thinking...</div>}
+        {isProcessing && !activePlan && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 13 }}><Loader2 size={13} style={{ animation: 'spin 2s linear infinite' }} aria-hidden="true" />Thinking…</div>}
         {activePlan && (
           <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 16, border: '1px solid var(--border)', marginTop: 8, boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -246,20 +268,25 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
             ))}
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
-      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ModeSwitch mode={mode} onChange={onModeChange} />
-          <ModelSelector selectedId={modelId} onChange={onModelChange} />
+
+      <div className="bb-composer-dock">
+
+        {/* 上下文工具栏：tags 左对齐，+ 按钮右对齐 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <AddResourceButton
+            onAdd={(r) => onResourcesChange([...activeResources, r])}
+            boundIds={activeResources.map((r) => r.id)}
+          />
+          <ConversationContextTags
+            resources={activeResources}
+            onRemove={(id) => onResourcesChange(activeResources.filter((x) => x.id !== id))}
+          />
         </div>
 
-        {/* Permission selector — below mode/model row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <PermissionSelector mode={permMode} onChange={onChangePermMode} />
-        </div>
+        <div className="bb-composer-float" style={{ position: 'relative', padding: '10px 14px 12px' }}>
 
-        {/* Upload zone + input area */}
-        <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-lg)', padding: '6px 12px', border: '1px solid transparent', marginTop: 8, position: 'relative' }}>
           <UploadZone
             files={uploadedFiles}
             onAdd={handleAddFiles}
@@ -268,18 +295,18 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
             onSelectWorkspace={onSelectWorkspace}
           />
 
-          {/* Slash command dropdown */}
           {slashOpen && filteredCommands.length > 0 && (
             <div style={{
               position: 'absolute', bottom: '100%', left: 0, right: 0,
-              marginBottom: 4,
-              background: 'var(--bg-card)', borderRadius: 8,
+              marginBottom: 8,
+              background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
               zIndex: 100, padding: '4px 0', maxHeight: 200, overflowY: 'auto',
             }}>
               {filteredCommands.map((cmd, idx) => (
                 <button
                   key={cmd.name}
+                  type="button"
                   onMouseDown={(e) => {
                     e.preventDefault()
                     selectSlashCommand(cmd)
@@ -300,34 +327,38 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <ModeSwitch mode={mode} onChange={onModeChange} />
             <textarea
               ref={textareaRef}
+              name="chat-input"
+              aria-label="消息输入"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder={mode === 'ask' ? 'Ask a question...' : mode === 'plan' ? 'Describe your task, I\'ll make a plan...' : 'Describe your task, I\'ll execute it...'}
+              placeholder={mode === 'ask' ? 'Ask a question…' : mode === 'plan' ? 'Describe your task, I\'ll make a plan…' : 'Describe your task, I\'ll execute it…'}
               onKeyDown={handleKeyDown}
               rows={1}
               disabled={isProcessing}
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary)', padding: '4px 0', lineHeight: 1.5 }}
+              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary)', padding: '6px 2px', lineHeight: 1.55 }}
             />
             {isProcessing ? (
-              <button onClick={onStop} style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--danger)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Square size={14} color="#fff" />
+              <button type="button" className="bb-icon-btn" onClick={onStop} aria-label="停止生成" style={{ width: 34, height: 34, background: 'var(--danger)', color: '#fff' }}>
+                <Square size={14} aria-hidden="true" />
               </button>
             ) : (
-              <button onClick={sendMessage} style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Send size={15} color="#fff" />
+              <button type="button" onClick={sendMessage} aria-label="发送消息" style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                <Send size={15} color="#fff" aria-hidden="true" />
               </button>
             )}
           </div>
         </div>
 
-        {/* Workspace selector + footer */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
           <button
+            type="button"
             onClick={onSelectWorkspace}
             title="Select workspace"
+            aria-label="选择工作区"
             style={{
               display: 'flex', alignItems: 'center', gap: 4,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -335,44 +366,43 @@ export function ChatPanel({ messages, activePlan, isProcessing, mode, workspaceP
               fontFamily: 'inherit', padding: '2px 4px', borderRadius: 4,
             }}
           >
-            <FolderOpen size={12} />
-            {workspacePath ? workspacePath.split(/[\\/]/).pop() || workspacePath : 'Select workspace...'}
+            <FolderOpen size={12} aria-hidden="true" />
+            {workspacePath ? workspacePath.split(/[\\/]/).pop() || workspacePath : 'Select workspace…'}
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ModelSelector selectedId={modelId} onChange={onModelChange} />
+          <PermissionSelector mode={permMode} onChange={onChangePermMode} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
             <button
+              type="button"
+              className="bb-icon-btn"
               onClick={() => setSearchOpen(!searchOpen)}
               title="搜索对话"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                display: 'flex', color: searchOpen ? 'var(--accent)' : 'var(--text-tertiary)',
-                padding: 2,
-              }}
+              aria-label="搜索对话"
+              style={{ width: 26, height: 26, color: searchOpen ? 'var(--accent)' : undefined }}
             >
-              <SearchIcon size={12} />
+              <SearchIcon size={12} aria-hidden="true" />
             </button>
             <button
+              type="button"
+              className="bb-icon-btn"
               onClick={() => {
                 const shareText = `BspBuddy Task: ${messages[0]?.content?.slice(0, 50) || 'Untitled'}`
                 navigator.clipboard.writeText(shareText).catch(() => {})
               }}
               title="分享任务"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                display: 'flex', color: 'var(--text-tertiary)',
-                padding: 2,
-              }}
+              aria-label="分享任务"
+              style={{ width: 26, height: 26 }}
             >
-              <Share2 size={12} />
+              <Share2 size={12} aria-hidden="true" />
             </button>
             <button
+              type="button"
+              className="bb-icon-btn"
               title="历史提问"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                display: 'flex', color: 'var(--text-tertiary)',
-                padding: 2,
-              }}
+              aria-label="历史提问"
+              style={{ width: 26, height: 26 }}
             >
-              <Clock size={12} />
+              <Clock size={12} aria-hidden="true" />
             </button>
             <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
               {mode === 'ask' ? 'Answers for reference only' : 'BspBuddy may make mistakes'}

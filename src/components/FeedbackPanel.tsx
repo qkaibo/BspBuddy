@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ThumbsUp, ThumbsDown, BarChart3, X } from 'lucide-react'
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -24,14 +25,14 @@ export function FeedbackPanel({ onClose }: Props) {
   const goodRate = s?.total ? Math.round((s.good / s.total) * 100) : 0
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', overflow: 'hidden' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BarChart3 size={18} color="var(--accent)" />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>反馈看板</span>
         </div>
-        <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>x</button>
+        <button type="button" onClick={onClose} aria-label="关闭反馈看板" style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>

@@ -33,5 +33,6 @@ BspBuddy 是 Electron + React + TypeScript 的 AI 桌面工作台。
 ## 脚手架 ≠ 已上线
 
 大量 P3 文件已存在（插件、IM、连接器、记忆等），但可能未完成。
-改功能前先查 `specs/plans/README.md` 状态，并阅读对应 `specs/plans/0X-*.md`。
-不要发明与 SPEC 冲突的产品行为。
+改功能前先查 `docs/README.md` 状态，并阅读对应 `docs/plans/`（及关联 PRD / Tech Spec）。
+不要发明与 `docs/` 冲突的产品行为。`specs/` 已废弃，勿再当作事实来源。
+

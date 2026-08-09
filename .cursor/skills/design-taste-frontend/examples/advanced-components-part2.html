@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高级组件 Part 2 - 反-slop设计系统</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing: border-box; }
+
+    :root, [data-theme="light"] {
+      --color-primary: #1a1a1a;
+      --color-secondary: #666;
+      --color-accent: #0d9488;
+      --color-bg: #fafafa;
+      --color-surface: #fff;
+      --color-border: #e5e5e5;
+      --color-success: #16a34a;
+      --color-warning: #d97706;
+      --color-error: #dc2626;
+      --color-info: #2563eb;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+    }
+
+    [data-theme="dark"] {
+      --color-primary: #fafafa;
+      --color-secondary: #a1a1aa;
+      --color-accent: #2dd4bf;
+      --color-bg: #0a0a0a;
+      --color-surface: #171717;
+      --color-border: #262626;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      color: var(--color-primary);
+      line-height: 1.6;
+    }
+
+    /* 导航 */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .nav-brand {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .nav-links { display: flex; gap: var(--space-8); }
+
+    .nav-links a {
+      font-size: 1rem;
+      color: var(--color-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--color-primary); }
+
+    .theme-toggle {
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: var(--color-bg);
+      transform: translateY(-1px);
+    }
+
+    /* 主内容 */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-8);
+    }
+
+    /* 区块 */
+    .section {
+      margin-bottom: var(--space-16);
+    }
+
+    .section-header {
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      border-bottom: 2px solid var(--color-border);
+    }
+
+    .section-header h2 {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+
+    .section-header p {
+      font-size: 1rem;
+      color: var(--color-secondary);
+    }
+
+    /* 按钮 */
+    .btn {
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--color-primary);
+    }
+
+    .btn-primary:hover {
+      background: #333;
+      transform: translateY(-1px);
+    }
+
+    .button-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+
+    /* 抽屉 */
+    .drawer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .drawer-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      height: 100vh;
+      background: var(--color-surface);
+      border-left: 1px solid var(--color-border);
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1001;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .drawer-overlay.active .drawer {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .drawer-title {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .drawer-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--color-secondary);
+      transition: color 0.2s;
+    }
+
+    .drawer-close:hover { color: var(--color-primary); }
+
+    .drawer-body {
+      flex: 1;
+      padding: var(--space-6);
+      overflow-y: auto;
+      font-size: 1rem;
+      line-height: 1.75;
+      color: var(--color-secondary);
+    }
+
+    .drawer-footer {
+      padding: var(--space-6);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-3);
+    }
+
+    /* 日期选择器 */
+    .datepicker {
+      position: relative;
+      display: inline-block;
+    }
+
+    .datepicker-input {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      color: var(--color-primary);
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .datepicker-input:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    }
+
+    .datepicker-calendar {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: var(--space-2);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: var(--space-4);
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: all 0.2s;
+      z-index: 100;
+    }
+
+    .datepicker-calendar.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-4);
+    }
+
+    .calendar-title {
+      font-weight: 500;
+      font-size: 1rem;
+    }
+
+    .calendar-nav {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      cursor: pointer;
+      color: var(--color-secondary);
+      padding: var(--space-1);
+      transition: color 0.2s;
+    }
+
+    .calendar-nav:hover { color: var(--color-primary); }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: var(--space-1);
+    }
+
+    .calendar-day-header {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--color-secondary);
+      padding: var(--space-2);
+    }
+
+    .calendar-day {
+      text-align: center;
+      padding: var(--space-2);
+      font-size: 0.875rem;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .calendar-day:hover {
+      background: var(--color-bg);
+    }
+
+    .calendar-day.today {
+      background: var(--color-primary);
+      color: #fff;
+    }
+
+    .calendar-day.other-month {
+      color: var(--color-border);
+    }
+
+    /* 时间轴 */
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--color-border);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: var(--space-8);
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -2rem;
+      top: 0.5rem;
+      width: 12px;
+      height: 12px;
+      background: var(--color-surface);
+      border: 2px solid var(--color-primary);
+      border-radius: 50%;
+      transform: translateX(-50%);
+    }
+
+    .timeline-item.completed::before {
+      background: var(--color-success);
+      border-color: var(--color-success);
+    }
+
+    .timeline-date {
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+      margin-bottom: var(--space-2);
+    }
+
+    .timeline-title {
+      font-family: 'Noto Sans SC', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: var(--space-2);
+    }
+
+    .timeline-body {
+      font-size: 1rem;
+      line-height: 1.75;
+      color: var(--color-secondary);
+    }
+
+    /* 步骤条 */
+    .steps {
+      display: flex;
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+
+    .step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 1.5rem;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: var(--color-border);
+      z-index: 0;
+    }
+
+    .step.completed:not(:last-child)::after {
+      background: var(--color-success);
+    }
+
+    .step-circle {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 50%;
+      background: var(--color-surface);
+      border: 2px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--color-secondary);
+      position: relative;
+      z-index: 1;
+      transition: all 0.2s;
+    }
+
+    .step.active .step-circle {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: #fff;
+    }
+
+    .step.completed .step-circle {
+      background: var(--color-success);
+      border-color: var(--color-success);
+      color: #fff;
+    }
+
+    .step-label {
+      margin-top: var(--space-2);
+      font-size: 0.875rem;
+      color: var(--color-secondary);
+      text-align: center;
+    }
+
+    .step.active .step-label {
+      color: var(--color-primary);
+      font-weight: 500;
+    }
+
+    .step.completed .step-label {
+      color: var(--color-success);
+    }
+
+    /* 上传组件 */
+    .upload {
+      max-width: 400px;
+    }
+
+    .upload-dropzone {
+      padding: var(--space-8);
+      background: var(--color-surface);
+      border: 2px dashed var(--color-border);
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-dropzone:hover {
+      border-color: var(--color-accent);
+      background: var(--color-bg);
+    }
+
+    .upload-dropzone.dragging {
+      border-color: var(--color-accent);
+      background: rgba(13, 148, 136, 0.05);
+    }
+
+    .upload-icon {
+      font-size: 3rem;
+      margin-bottom: var(--space-4);
+    }
+
+    .upload-text {
+      font-size: 1rem;
+      color: var(--color-secondary);
+      margin-bottom: var(--space-2);
+    }
+
+    .upload-hint {
+      font-size: 0.875rem;
+      color: var(--color-border);
+    }
+
+    .upload-list {
+      margin-top: var(--space-4);
+    }
+
+    .upload-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      margin-bottom: var(--space-2);
+    }
+
+    .upload-item-icon {
+      font-size: 1.5rem;
+    }
+
+    .upload-item-info {
+      flex: 1;
+    }
+
+    .upload-item-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: var(--space-1);
+    }
+
+    .upload-item-size {
+      font-size: 0.75rem;
+      color: var(--color-secondary);
+    }
+
+    .upload-item-progress {
+      height: 4px;
+      background: var(--color-bg);
+      border-radius: 2px;
+      margin-top: var(--space-2);
+      overflow: hidden;
+    }
+
+    .upload-item-progress-bar {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    .upload-item-remove {
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+      color: var(--color-secondary);
+      transition: color 0.2s;
+    }
+
+    .upload-item-remove:hover { color: var(--color-error); }
+
+    @media (max-width: 768px) {
+      .main { padding: var(--space-4); }
+      .steps { flex-direction: column; }
+      .step:not(:last-child)::after {
+        top: 1.5rem;
+        left: 1.5rem;
+        width: 2px;
+        height: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航 -->
+  <nav class="navbar">
+    <div class="nav-brand">高级组件 Part 2</div>
+    <div class="nav-links">
+      <a href="#drawer">抽屉</a>
+      <a href="#datepicker">日期选择</a>
+      <a href="#timeline">时间轴</a>
+      <a href="#steps">步骤条</a>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()">🌙 暗色模式</button>
+  </nav>
+
+  <!-- 主内容 -->
+  <div class="main">
+    <!-- 标题 -->
+    <div class="section">
+      <h1 style="font-family: 'Noto Serif SC', serif; font-size: 2.5rem; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem;">
+        高级组件 Part 2
+      </h1>
+      <p style="font-size: 1.125rem; color: var(--color-secondary); max-width: 600px;">
+        抽屉、日期选择器、时间轴、步骤条、上传组件，继续完善反-slop设计系统。
+      </p>
+    </div>
+
+    <!-- 抽屉 -->
+    <div class="section" id="drawer">
+      <div class="section-header">
+        <h2>抽屉（Drawer）</h2>
+        <p>侧边滑出面板，适合展示附加信息</p>
+      </div>
+      <div class="button-grid">
+        <button class="btn btn-primary" onclick="openDrawer()">打开抽屉</button>
+      </div>
+    </div>
+
+    <!-- 日期选择器 -->
+    <div class="section" id="datepicker">
+      <div class="section-header">
+        <h2>日期选择器（DatePicker）</h2>
+        <p>选择日期，支持范围选择</p>
+      </div>
+      <div class="datepicker">
+        <input type="text" class="datepicker-input" placeholder="选择日期" onclick="toggleCalendar()" readonly />
+        <div class="datepicker-calendar" id="calendar">
+          <div class="calendar-header">
+            <button class="calendar-nav" onclick="changeMonth(-1)">‹</button>
+            <span class="calendar-title" id="calendarTitle">2026年5月</span>
+            <button class="calendar-nav" onclick="changeMonth(1)">›</button>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 时间轴 -->
+    <div class="section" id="timeline">
+      <div class="section-header">
+        <h2>时间轴（Timeline）</h2>
+        <p>展示时间线、历史事件</p>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item completed">
+          <div class="timeline-date">2026年5月20日</div>
+          <div class="timeline-title">项目启动</div>
+          <div class="timeline-body">完成需求分析和项目规划，确定技术栈和开发周期。</div>
+        </div>
+        <div class="timeline-item completed">
+          <div class="timeline-date">2026年5月22日</div>
+          <div class="timeline-title">UI设计完成</div>
+          <div class="timeline-body">完成所有页面的UI设计，输出设计稿和交互原型。</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-date">2026年5月26日</div>
+          <div class="timeline-title">前端开发</div>
+          <div class="timeline-body">使用React + Tailwind CSS进行前端开发，遵循反-slop设计规范。</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-date">2026年6月1日</div>
+          <div class="timeline-title">测试上线</div>
+          <div class="timeline-body">完成单元测试、集成测试，部署到生产环境。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 步骤条 -->
+    <div class="section" id="steps">
+      <div class="section-header">
+        <h2>步骤条（Steps）</h2>
+        <p>引导流程、分步表单</p>
+      </div>
+      <div class="steps" id="stepsDemo">
+        <div class="step completed">
+          <div class="step-circle">✓</div>
+          <div class="step-label">填写信息</div>
+        </div>
+        <div class="step completed">
+          <div class="step-circle">✓</div>
+          <div class="step-label">确认订单</div>
+        </div>
+        <div class="step active">
+          <div class="step-circle">3</div>
+          <div class="step-label">支付付款</div>
+        </div>
+        <div class="step">
+          <div class="step-circle">4</div>
+          <div class="step-label">完成</div>
+        </div>
+      </div>
+      <div class="button-grid">
+        <button class="btn btn-secondary" onclick="prevStep()">上一步</button>
+        <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+      </div>
+    </div>
+
+    <!-- 上传组件 -->
+    <div class="section" id="upload">
+      <div class="section-header">
+        <h2>上传组件（Upload）</h2>
+        <p>文件上传、拖拽上传</p>
+      </div>
+      <div class="upload">
+        <div class="upload-dropzone" id="dropzone">
+          <div class="upload-icon">📁</div>
+          <div class="upload-text">点击或拖拽文件到此处</div>
+          <div class="upload-hint">支持 jpg、png、pdf 格式，单个文件不超过10MB</div>
+        </div>
+        <div class="upload-list" id="uploadList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 抽屉 -->
+  <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawerOnOverlay(event)">
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">抽屉标题</div>
+        <button class="drawer-close" onclick="closeDrawer()">×</button>
+      </div>
+      <div class="drawer-body">
+        <p>这是一个抽屉组件示例。适合展示附加信息、设置面板、详情页等场景。</p>
+        <p style="margin-top: var(--space-4);">抽屉从右侧滑出，不阻断主流程，是一种优雅的信息展示方式。</p>
+      </div>
+      <div class="drawer-footer">
+        <button class="btn btn-secondary" onclick="closeDrawer()">取消</button>
+        <button class="btn btn-primary" onclick="closeDrawer()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 主题切换
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.querySelector('.theme-toggle').textContent = 
+        next === 'dark' ? '☀️ 亮色模式' : '🌙 暗色模式';
+    }
+
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.querySelector('.theme-toggle').textContent = '☀️ 亮色模式';
+    }
+
+    // 抽屉
+    function openDrawer() {
+      document.getElementById('drawerOverlay').classList.add('active');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawerOverlay').classList.remove('active');
+    }
+
+    function closeDrawerOnOverlay(event) {
+      if (event.target === event.currentTarget) {
+        closeDrawer();
+      }
+    }
+
+    // 日期选择器
+    let currentMonth = 4; // 0-indexed, 4 = May
+    let currentYear = 2026;
+
+    function toggleCalendar() {
+      const calendar = document.getElementById('calendar');
+      calendar.classList.toggle('show');
+      if (calendar.classList.contains('show')) {
+        renderCalendar();
+      }
+    }
+
+    function changeMonth(delta) {
+      currentMonth += delta;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      } else if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const title = document.getElementById('calendarTitle');
+      const grid = document.getElementById('calendarGrid');
+      
+      const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+      title.textContent = `${currentYear}年${monthNames[currentMonth]}`;
+      
+      const days = ['日', '一', '二', '三', '四', '五', '六'];
+      
+      let html = '';
+      days.forEach(day => {
+        html += `<div class="calendar-day-header">${day}</div>`;
+      });
+      
+      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      
+      for (let i = 0; i < firstDay; i++) {
+        html += `<div class="calendar-day other-month"></div>`;
+      }
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = currentYear === 2026 && currentMonth === 4 && day === 26;
+        html += `<div class="calendar-day ${isToday ? 'today' : ''}">${day}</div>`;
+      }
+      
+      grid.innerHTML = html;
+    }
+
+    // 点击外部关闭日历
+    document.addEventListener('click', (event) => {
+      const datepicker = document.querySelector('.datepicker');
+      const calendar = document.getElementById('calendar');
+      if (!datepicker.contains(event.target)) {
+        calendar.classList.remove('show');
+      }
+    });
+
+    // 步骤条
+    let currentStep = 2; // 0-indexed, 2 = step 3
+
+    function nextStep() {
+      if (currentStep < 3) {
+        currentStep++;
+        updateSteps();
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 0) {
+        currentStep--;
+        updateSteps();
+      }
+    }
+
+    function updateSteps() {
+      const steps = document.querySelectorAll('.step');
+      steps.forEach((step, index) => {
+        step.classList.remove('completed', 'active');
+        if (index < currentStep) {
+          step.classList.add('completed');
+          step.querySelector('.step-circle').textContent = '✓';
+        } else if (index === currentStep) {
+          step.classList.add('active');
+          step.querySelector('.step-circle').textContent = index + 1;
+        } else {
+          step.querySelector('.step-circle').textContent = index + 1;
+        }
+      });
+    }
+
+    // 上传组件
+    const dropzone = document.getElementById('dropzone');
+    const uploadList = document.getElementById('uploadList');
+
+    dropzone.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = (e) => handleFiles(e.target.files);
+      input.click();
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragging');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragging');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragging');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    function handleFiles(files) {
+      Array.from(files).forEach(file => {
+        addUploadItem(file);
+      });
+    }
+
+    function addUploadItem(file) {
+      const item = document.createElement('div');
+      item.className = 'upload-item';
+      
+      const size = (file.size / 1024 / 1024).toFixed(2);
+      item.innerHTML = `
+        <div class="upload-item-icon">📄</div>
+        <div class="upload-item-info">
+          <div class="upload-item-name">${file.name}</div>
+          <div class="upload-item-size">${size} MB</div>
+          <div class="upload-item-progress">
+            <div class="upload-item-progress-bar" style="width: 0%"></div>
+          </div>
+        </div>
+        <button class="upload-item-remove" onclick="this.parentElement.remove()">×</button>
+      `;
+      
+      uploadList.appendChild(item);
+      
+      // 模拟上传进度
+      const progressBar = item.querySelector('.upload-item-progress-bar');
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        progressBar.style.width = `${progress}%`;
+        if (progress >= 100) {
+          clearInterval(interval);
+        }
+      }, 200);
+    }
+
+    // 初始化日历
+    renderCalendar();
+  </script>
+</body>
+</html>

@@ -41,11 +41,13 @@ export function CreditDisplay({ collapsed = false, onOpenPricing }: Props) {
     return (
       <div style={{ padding: '4px', display: 'flex', justifyContent: 'center' }}>
         <button
+          type="button"
           onClick={onOpenPricing}
           title={`${balance.remaining}/${balance.total} credits`}
+          aria-label={`积分 ${balance.remaining}/${balance.total}，打开套餐`}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 2 }}
         >
-          <Coins size={16} />
+          <Coins size={16} aria-hidden="true" />
         </button>
       </div>
     )

@@ -20,6 +20,8 @@ import {
   CLOUD_AGENT_STATUS_LABELS, RUNTIME_STATUS_LABELS, CHANNEL_TYPE_LABELS,
   AVAILABLE_MODELS_CLOUD,
 } from '../lib/cloud-agent'
+import { ConfirmDialog } from './ConfirmDialog'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -44,6 +46,7 @@ export function CloudAgentPanel({ onClose }: Props) {
     runtime: { cpu: '2c', memory: '4Gi', storage: '20Gi' },
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => { loadAgents() }, [])
 
@@ -169,10 +172,10 @@ export function CloudAgentPanel({ onClose }: Props) {
   // Agent list view
   if (!selectedAgent && !showCreate) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', height: '100%' }}>
+      <div style={panelRootStyle()}>
         <div style={headerStyle}>
-          {onClose && <button onClick={onClose} style={backBtnStyle}><ChevronLeft size={16} /></button>}
-          <Cloud size={18} color="var(--accent)" />
+          {onClose && <button type="button" onClick={onClose} aria-label="关闭云端智能体" style={backBtnStyle}><ChevronLeft size={16} aria-hidden="true" /></button>}
+          <Cloud size={18} color="var(--accent)" aria-hidden="true" />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Cloud Agents</span>
           <div style={{ flex: 1 }} />
           <button onClick={() => setShowCreate(true)} style={primaryBtnStyle}>
@@ -187,20 +190,23 @@ export function CloudAgentPanel({ onClose }: Props) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
             {agents.map((agent) => (
-              <div
+              <button
+                type="button"
                 key={agent.id}
                 onClick={() => selectAgent(agent)}
+                aria-label={`打开智能体 ${agent.name}`}
                 style={{
+                  display: 'block', width: '100%', textAlign: 'left',
                   background: 'var(--bg-card)', borderRadius: 10, padding: 16,
                   border: '1px solid var(--border)', cursor: 'pointer',
-                  transition: 'box-shadow .15s',
+                  transition: 'box-shadow .15s', fontFamily: 'inherit', color: 'inherit',
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
                 onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Cloud size={16} color="var(--accent)" />
+                    <Cloud size={16} color="var(--accent)" aria-hidden="true" />
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{agent.name}</span>
                   </div>
                   <span style={{
@@ -213,14 +219,14 @@ export function CloudAgentPanel({ onClose }: Props) {
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 10 }}>
                   {agent.manifest.systemPrompt?.slice(0, 80) || 'No system prompt'}
-                  {(agent.manifest.systemPrompt?.length || 0) > 80 ? '...' : ''}
+                  {(agent.manifest.systemPrompt?.length || 0) > 80 ? '…' : ''}
                 </div>
                 <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--text-tertiary)' }}>
                   <span>Model: {agent.manifest.model || 'auto'}</span>
                   <span>Skills: {agent.skills.length}</span>
                   <span>{agent.memory ? 'Memory On' : 'Memory Off'}</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
 
@@ -242,9 +248,9 @@ export function CloudAgentPanel({ onClose }: Props) {
   // Create wizard
   if (showCreate) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', height: '100%' }}>
+      <div style={panelRootStyle()}>
         <div style={headerStyle}>
-          <button onClick={() => setShowCreate(false)} style={backBtnStyle}><ChevronLeft size={16} /></button>
+          <button type="button" onClick={() => setShowCreate(false)} aria-label="取消创建" style={backBtnStyle}><ChevronLeft size={16} aria-hidden="true" /></button>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Create Agent</span>
         </div>
 
@@ -254,7 +260,7 @@ export function CloudAgentPanel({ onClose }: Props) {
             <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
               {(['basics', 'capabilities', 'advanced', 'test_run'] as CreateStep[]).map((s, i) => (
                 <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
-                  <button onClick={() => setCreateStep(s)} style={{
+                  <button type="button" onClick={() => setCreateStep(s)} style={{
                     padding: '6px 14px', borderRadius: 6, border: 'none',
                     background: createStep === s ? 'var(--accent)' : 'transparent',
                     color: createStep === s ? '#fff' : 'var(--text-secondary)',
@@ -271,24 +277,24 @@ export function CloudAgentPanel({ onClose }: Props) {
             {createStep === 'basics' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
-                  <label style={fieldLabel}>Agent Name</label>
-                  <input value={createState.name} onChange={(e) => setCreateState({ ...createState, name: e.target.value })} placeholder="My Agent" style={inputStyle} />
+                  <label htmlFor="cloud-agent-name" style={fieldLabel}>Agent Name</label>
+                  <input id="cloud-agent-name" name="cloud-agent-name" value={createState.name} onChange={(e) => setCreateState({ ...createState, name: e.target.value })} placeholder="My Agent" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={fieldLabel}>Model</label>
-                  <select value={createState.model} onChange={(e) => setCreateState({ ...createState, model: e.target.value })} style={selectStyle}>
+                  <label htmlFor="cloud-agent-model" style={fieldLabel}>Model</label>
+                  <select id="cloud-agent-model" name="cloud-agent-model" value={createState.model} onChange={(e) => setCreateState({ ...createState, model: e.target.value })} style={selectStyle}>
                     {AVAILABLE_MODELS_CLOUD.map((m) => <option key={m.id} value={m.id}>{m.name} - {m.description}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={fieldLabel}>System Prompt</label>
-                  <textarea value={createState.systemPrompt} onChange={(e) => setCreateState({ ...createState, systemPrompt: e.target.value })} placeholder="Define how your agent should behave..." rows={5} style={{ ...inputStyle, resize: 'vertical' }} />
+                  <label htmlFor="cloud-agent-prompt" style={fieldLabel}>System Prompt</label>
+                  <textarea id="cloud-agent-prompt" name="cloud-agent-prompt" value={createState.systemPrompt} onChange={(e) => setCreateState({ ...createState, systemPrompt: e.target.value })} placeholder="Define how your agent should behave…" rows={5} style={{ ...inputStyle, resize: 'vertical' }} />
                 </div>
-                <button onClick={() => setCreateStep('capabilities')} disabled={!createState.name} style={{
+                <button type="button" onClick={() => setCreateStep('capabilities')} disabled={!createState.name} style={{
                   ...primaryBtnStyle, width: 'fit-content', alignSelf: 'flex-end',
                   opacity: createState.name ? 1 : .5,
                 }}>
-                  Next: Capabilities <ChevronLeft size={13} style={{ transform: 'rotate(180deg)' }} />
+                  Next: Capabilities <ChevronLeft size={13} style={{ transform: 'rotate(180deg)' }} aria-hidden="true" />
                 </button>
               </div>
             )}
@@ -297,16 +303,16 @@ export function CloudAgentPanel({ onClose }: Props) {
             {createStep === 'capabilities' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
-                  <label style={fieldLabel}>Skills (comma separated)</label>
-                  <input value={createState.skills.join(', ')} onChange={(e) => setCreateState({ ...createState, skills: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="code-review, data-analysis" style={inputStyle} />
+                  <label htmlFor="cloud-agent-skills" style={fieldLabel}>Skills (comma separated)</label>
+                  <input id="cloud-agent-skills" name="cloud-agent-skills" value={createState.skills.join(', ')} onChange={(e) => setCreateState({ ...createState, skills: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="code-review, data-analysis" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={fieldLabel}>Experts (comma separated)</label>
-                  <input value={createState.experts.join(', ')} onChange={(e) => setCreateState({ ...createState, experts: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="frontend-expert" style={inputStyle} />
+                  <label htmlFor="cloud-agent-experts" style={fieldLabel}>Experts (comma separated)</label>
+                  <input id="cloud-agent-experts" name="cloud-agent-experts" value={createState.experts.join(', ')} onChange={(e) => setCreateState({ ...createState, experts: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="frontend-expert" style={inputStyle} />
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setCreateStep('basics')} style={secondaryBtnStyle}>Back</button>
-                  <button onClick={() => setCreateStep('advanced')} style={primaryBtnStyle}>Next: Advanced</button>
+                  <button type="button" onClick={() => setCreateStep('basics')} style={secondaryBtnStyle}>Back</button>
+                  <button type="button" onClick={() => setCreateStep('advanced')} style={primaryBtnStyle}>Next: Advanced</button>
                 </div>
               </div>
             )}
@@ -315,27 +321,27 @@ export function CloudAgentPanel({ onClose }: Props) {
             {createStep === 'advanced' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
-                  <label style={fieldLabel}>Knowledge Base (comma separated)</label>
-                  <input value={createState.knowledgeBase.join(', ')} onChange={(e) => setCreateState({ ...createState, knowledgeBase: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="team-coding-standards" style={inputStyle} />
+                  <label htmlFor="cloud-agent-kb" style={fieldLabel}>Knowledge Base (comma separated)</label>
+                  <input id="cloud-agent-kb" name="cloud-agent-kb" value={createState.knowledgeBase.join(', ')} onChange={(e) => setCreateState({ ...createState, knowledgeBase: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="team-coding-standards" style={inputStyle} />
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={createState.memory} onChange={(e) => setCreateState({ ...createState, memory: e.target.checked })} />
+                <label htmlFor="cloud-agent-memory" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input id="cloud-agent-memory" type="checkbox" name="cloud-agent-memory" checked={createState.memory} onChange={(e) => setCreateState({ ...createState, memory: e.target.checked })} />
                   <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Enable Memory (cross-turn context)</span>
                 </label>
                 <div>
-                  <label style={fieldLabel}>Runtime Spec</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <select value={createState.runtime.cpu} onChange={(e) => setCreateState({ ...createState, runtime: { ...createState.runtime, cpu: e.target.value } })} style={{ ...selectStyle, flex: 1 }}>
+                  <span style={fieldLabel} id="cloud-runtime-label">Runtime Spec</span>
+                  <div style={{ display: 'flex', gap: 8 }} role="group" aria-labelledby="cloud-runtime-label">
+                    <select aria-label="CPU" value={createState.runtime.cpu} onChange={(e) => setCreateState({ ...createState, runtime: { ...createState.runtime, cpu: e.target.value } })} style={{ ...selectStyle, flex: 1 }}>
                       <option value="2c">2 vCPU</option><option value="4c">4 vCPU</option><option value="8c">8 vCPU</option>
                     </select>
-                    <select value={createState.runtime.memory} onChange={(e) => setCreateState({ ...createState, runtime: { ...createState.runtime, memory: e.target.value } })} style={{ ...selectStyle, flex: 1 }}>
+                    <select aria-label="内存" value={createState.runtime.memory} onChange={(e) => setCreateState({ ...createState, runtime: { ...createState.runtime, memory: e.target.value } })} style={{ ...selectStyle, flex: 1 }}>
                       <option value="4Gi">4 GB</option><option value="8Gi">8 GB</option><option value="16Gi">16 GB</option>
                     </select>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setCreateStep('capabilities')} style={secondaryBtnStyle}>Back</button>
-                  <button onClick={handleCreate} style={primaryBtnStyle}><Check size={14} /> Create Agent</button>
+                  <button type="button" onClick={() => setCreateStep('capabilities')} style={secondaryBtnStyle}>Back</button>
+                  <button type="button" onClick={handleCreate} style={primaryBtnStyle}><Check size={14} aria-hidden="true" /> Create Agent</button>
                 </div>
               </div>
             )}
@@ -348,9 +354,9 @@ export function CloudAgentPanel({ onClose }: Props) {
   // Agent detail view
   if (selectedAgent) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', height: '100%' }}>
+      <div style={panelRootStyle()}>
         <div style={headerStyle}>
-          <button onClick={() => { setSelectedAgent(null); loadAgents() }} style={backBtnStyle}><ChevronLeft size={16} /></button>
+          <button type="button" onClick={() => { setSelectedAgent(null); loadAgents() }} aria-label="返回智能体列表" style={backBtnStyle}><ChevronLeft size={16} aria-hidden="true" /></button>
           <Cloud size={18} color="var(--accent)" />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{selectedAgent.name}</span>
           <span style={{
@@ -362,12 +368,12 @@ export function CloudAgentPanel({ onClose }: Props) {
           </span>
           <div style={{ flex: 1 }} />
           {selectedAgent.status === 'running' ? (
-            <button onClick={() => handleStop(selectedAgent.id)} style={{ ...actionBtnStyle, color: '#dc2626' }}><Square size={12} /> Stop</button>
+            <button type="button" onClick={() => handleStop(selectedAgent.id)} style={{ ...actionBtnStyle, color: '#dc2626' }}><Square size={12} aria-hidden="true" /> Stop</button>
           ) : (
-            <button onClick={() => handleStart(selectedAgent.id)} style={{ ...actionBtnStyle, color: '#16a34a' }}><Play size={12} /> Start</button>
+            <button type="button" onClick={() => handleStart(selectedAgent.id)} style={{ ...actionBtnStyle, color: '#16a34a' }}><Play size={12} aria-hidden="true" /> Start</button>
           )}
-          <button onClick={() => handleClone(selectedAgent.id)} style={actionBtnStyle}><Copy size={12} /></button>
-          <button onClick={() => handleDelete(selectedAgent.id)} style={{ ...actionBtnStyle, color: 'var(--danger)' }}><Trash2 size={12} /></button>
+          <button type="button" onClick={() => handleClone(selectedAgent.id)} aria-label="克隆智能体" style={actionBtnStyle}><Copy size={12} aria-hidden="true" /></button>
+          <button type="button" onClick={() => setConfirmDeleteId(selectedAgent.id)} aria-label="删除智能体" style={{ ...actionBtnStyle, color: 'var(--danger)' }}><Trash2 size={12} aria-hidden="true" /></button>
         </div>
 
         {/* Tabs */}
@@ -534,7 +540,19 @@ export function CloudAgentPanel({ onClose }: Props) {
             </div>
           )}
         </div>
-      </div>
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="确认删除智能体"
+          message="删除后该云端智能体及其运行数据将不可恢复，确定要删除吗？"
+          onConfirm={() => {
+            const id = confirmDeleteId
+            setConfirmDeleteId(null)
+            void handleDelete(id)
+          }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
+    </div>
     )
   }
 

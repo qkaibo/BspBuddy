@@ -8,6 +8,7 @@ import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { ArdotCanvas, ArdotServiceStatus, DesignType, DesignExportFormat } from '../lib/design-types'
 import { DESIGN_TYPES } from '../lib/design-types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -112,7 +113,7 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
   const s = (k: string, v: string) => `${k.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${v};`
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)' }}>
+    <div style={panelRootStyle()}>
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -160,17 +161,21 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              name="design-phone"
+              type="tel"
+              autoComplete="tel"
+              aria-label="手机号"
               placeholder="Phone number"
               style={{
                 width: 140, padding: '4px 10px', borderRadius: 4, border: '1px solid rgba(251,191,36,.5)',
                 fontSize: 12, outline: 'none', background: 'var(--bg-input)',
               }}
             />
-            <button onClick={handleConnect} disabled={isConnecting || !phone} style={{
+            <button type="button" onClick={handleConnect} disabled={isConnecting || !phone} style={{
               padding: '4px 12px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 600,
               background: 'var(--accent)', color: '#fff', cursor: phone ? 'pointer' : 'not-allowed', opacity: phone ? 1 : .5,
             }}>
-              {isConnecting ? '...' : 'Connect'}
+              {isConnecting ? '…' : 'Connect'}
             </button>
           </div>
         </div>
@@ -185,8 +190,10 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
           overflowY: 'auto', background: 'var(--bg-card)',
         }}>
           <div>
-            <label style={labelStyle}>Design Type</label>
+            <label htmlFor="design-type" style={labelStyle}>Design Type</label>
             <select
+              id="design-type"
+              name="design-type"
               value={designType}
               onChange={(e) => setDesignType(e.target.value as DesignType)}
               style={selectStyle}
@@ -198,11 +205,13 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
           </div>
 
           <div>
-            <label style={labelStyle}>Describe your design</label>
+            <label htmlFor="design-prompt" style={labelStyle}>Describe your design</label>
             <textarea
+              id="design-prompt"
+              name="design-prompt"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. Design a mobile login page with email and password fields..."
+              placeholder="e.g. Design a mobile login page with email and password fields…"
               rows={4}
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)',
@@ -212,22 +221,24 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
             />
           </div>
 
-          <button onClick={handleGenerate} disabled={isGenerating || !prompt} style={{
+          <button type="button" onClick={handleGenerate} disabled={isGenerating || !prompt} style={{
             width: '100%', padding: '10px', borderRadius: 8, border: 'none',
             background: prompt ? 'var(--accent)' : 'var(--border)',
             color: prompt ? '#fff' : 'var(--text-tertiary)',
             fontSize: 13, fontWeight: 600, cursor: prompt ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
-            {isGenerating ? 'Generating...' : (<><Palette size={14} /> Generate Design</>)}
+            {isGenerating ? 'Generating…' : (<><Palette size={14} aria-hidden="true" /> Generate Design</>)}
           </button>
 
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-            <label style={labelStyle}>Edit Design</label>
+            <label htmlFor="design-edit" style={labelStyle}>Edit Design</label>
             <textarea
+              id="design-edit"
+              name="design-edit"
               value={editInstruction}
               onChange={(e) => setEditInstruction(e.target.value)}
-              placeholder="e.g. Change the button to blue, make the title larger..."
+              placeholder="e.g. Change the button to blue, make the title larger…"
               rows={3}
               style={{
                 width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)',
@@ -235,21 +246,21 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
                 color: 'var(--text-primary)', outline: 'none', resize: 'vertical',
               }}
             />
-            <button onClick={handleEdit} disabled={isEditing || !editInstruction} style={{
+            <button type="button" onClick={handleEdit} disabled={isEditing || !editInstruction} style={{
               width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: 'none',
               background: editInstruction ? 'var(--accent)' : 'var(--border)',
               color: editInstruction ? '#fff' : 'var(--text-tertiary)',
               fontSize: 12, fontWeight: 600, cursor: editInstruction ? 'pointer' : 'not-allowed',
             }}>
-              {isEditing ? 'Editing...' : 'Edit Canvas'}
+              {isEditing ? 'Editing…' : 'Edit Canvas'}
             </button>
           </div>
 
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-            <label style={labelStyle}>Export Format</label>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <span style={labelStyle} id="design-export-label">Export Format</span>
+            <div style={{ display: 'flex', gap: 6 }} role="group" aria-labelledby="design-export-label">
               {(['html', 'react', 'vue'] as DesignExportFormat[]).map((f) => (
-                <button key={f} onClick={() => handleExport(f)} style={{
+                <button type="button" key={f} onClick={() => handleExport(f)} aria-pressed={exportFormat === f} style={{
                   flex: 1, padding: '6px', borderRadius: 6, border: '1px solid var(--border)',
                   background: exportFormat === f ? 'var(--accent-light)' : 'transparent',
                   color: exportFormat === f ? 'var(--accent)' : 'var(--text-secondary)',
@@ -261,12 +272,12 @@ export function DesignCreativeTab({ onBack, onSendToChat }: Props) {
             </div>
           </div>
 
-          <button onClick={handleSync} style={{
+          <button type="button" onClick={handleSync} style={{
             width: '100%', padding: '6px', borderRadius: 6, border: '1px solid var(--border)',
             background: 'transparent', color: 'var(--text-secondary)', fontSize: 12,
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
-            <RefreshCw size={12} /> Sync Canvas
+            <RefreshCw size={12} aria-hidden="true" /> Sync Canvas
           </button>
         </div>
 

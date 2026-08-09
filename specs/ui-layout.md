@@ -6,6 +6,8 @@
 
 ## 组件 SPEC 索引
 
+> **UX 硬性原则**（禁止纯输入框页 / 脚手架当完成）：[`docs/reference/ref-001-ui-design-principles.md`](../docs/reference/ref-001-ui-design-principles.md)（`specs/ui-design-principles.md` 仅为迁移 stub）
+
 | 组件 | SPEC 文档 | 说明 |
 |------|-----------|------|
 | **WorkBuddy 截图参考布局** | [workbuddy-reference-layout.spec.md](./components/workbuddy-reference-layout.spec.md) | **权威**：v5.3.8 欢迎态整屏（截图 confirmed） |

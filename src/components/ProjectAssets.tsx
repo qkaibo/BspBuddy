@@ -3,6 +3,7 @@ import { Upload, Trash2, FileText, Image, Video, Music, File, Globe, Link, HardD
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { ProjectAsset, AssetType } from '../lib/project-types'
+import { ConfirmDialog } from './ConfirmDialog'
 
 const ipc = createIpcClient()
 
@@ -51,6 +52,7 @@ export function ProjectAssets({ projectId, currentUserId, currentUserName, onAss
   const [uploadFilePath, setUploadFilePath] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const loadAssets = useCallback(async () => {
     const result = await ipc.invoke(IPC_CHANNELS.PROJECT_ASSET_LIST, projectId) as { success: boolean; assets: ProjectAsset[] }
@@ -179,15 +181,15 @@ export function ProjectAssets({ projectId, currentUserId, currentUserName, onAss
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search assets..."
+            placeholder="Search assets…" aria-label="搜索资源"
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
               fontSize: 12, color: 'var(--text-primary)', fontFamily: 'inherit',
             }}
           />
           {search && (
-            <button onClick={() => setSearch('')} style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
-              <X size={12} />
+            <button type="button" onClick={() => setSearch('')} aria-label="清除搜索" style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+              <X size={12} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -240,19 +242,27 @@ export function ProjectAssets({ projectId, currentUserId, currentUserName, onAss
 
       {/* Upload modal */}
       {showUpload && (
-        <div style={{
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-overlay="true"
+          style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+          overscrollBehavior: 'contain',
         }}>
           <div style={{
             background: 'var(--bg-card)', borderRadius: 12, padding: 24,
             width: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            overscrollBehavior: 'contain',
           }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 16px' }}>Upload Asset</h3>
 
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Name</label>
+              <label htmlFor="asset-upload-name" style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Name</label>
               <input
+                id="asset-upload-name"
+                name="asset-name"
                 value={uploadName}
                 onChange={(e) => setUploadName(e.target.value)}
                 placeholder="File name"
@@ -299,14 +309,14 @@ export function ProjectAssets({ projectId, currentUserId, currentUserName, onAss
                 <Upload size={14} />
                 {uploadFilePath
                   ? uploadFilePath.split(/[\\/]/).pop()
-                  : 'Choose a file...'}
+                  : 'Choose a file…'}
               </button>
             </div>
 
             {isUploading && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-                  <span>Uploading...</span>
+                  <span>Uploading…</span>
                   <span>{uploadProgress}%</span>
                 </div>
                 <div style={{ height: 4, background: 'var(--bg-input)', borderRadius: 2, overflow: 'hidden' }}>
@@ -406,21 +416,35 @@ export function ProjectAssets({ projectId, currentUserId, currentUserName, onAss
                     Open
                   </a>
                   <button
-                    onClick={() => handleDeleteAsset(a.id)}
+                    type="button"
+                    onClick={() => setConfirmDeleteId(a.id)}
                     style={{
                       padding: 4, borderRadius: 4, border: 'none',
                       background: 'transparent', cursor: 'pointer',
                       color: 'var(--text-tertiary)',
                     }}
                     title="Delete"
+                    aria-label={`删除资源 ${a.name}`}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={13} aria-hidden="true" />
                   </button>
                 </div>
               </div>
             )
           })}
         </div>
+      )}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="确认删除资源"
+          message="删除后该项目资源将不可恢复，确定要删除吗？"
+          onConfirm={() => {
+            const id = confirmDeleteId
+            setConfirmDeleteId(null)
+            void handleDeleteAsset(id)
+          }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
       )}
     </div>
   )

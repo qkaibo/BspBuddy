@@ -6,7 +6,7 @@ import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { v4 as uuid } from 'uuid'
-import type { Skill, SkillSearchResult, SkillInstallResult, SkillPackage, SkillPermission } from '../../lib/skill-types'
+import type { Skill, SkillSearchResult, SkillInstallResult, SkillUpdateParams, SkillPackage, SkillPermission } from '../../lib/skill-types'
 
 const BUILTIN_SKILLS: Skill[] = [
   {
@@ -164,41 +164,74 @@ function getUserSkillsPath(): string {
   return path.join(getDataDir(), 'user-skills.json')
 }
 
-function loadUserSkills(): Skill[] {
+function getPerUserSkillsPath(userId: string): string {
+  const dir = path.join(getDataDir(), 'per-user')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return path.join(dir, `${userId}.json`)
+}
+
+interface StoredSkill extends Skill {
+  ownerUserId?: string
+}
+
+function loadUserSkills(): StoredSkill[] {
   const p = getUserSkillsPath()
   if (!fs.existsSync(p)) return []
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8')) as Skill[]
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) as StoredSkill[]
   } catch {
     return []
   }
 }
 
-function saveUserSkills(skills: Skill[]): void {
-  fs.writeFileSync(getUserSkillsPath(), JSON.stringify(skills, null, 2), 'utf-8')
+function loadPerUserSkills(userId: string): StoredSkill[] {
+  const p = getPerUserSkillsPath(userId)
+  if (!fs.existsSync(p)) return []
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) as StoredSkill[]
+  } catch {
+    return []
+  }
 }
 
-function getAllSkills(): Skill[] {
-  const userSkills = loadUserSkills()
-  const userMap = new Map(userSkills.map((s) => [s.id, s]))
-  const builtins = BUILTIN_SKILLS.map((s) => {
-    const userOverride = userMap.get(s.id)
-    return userOverride ? { ...s, ...userOverride, id: s.id } : s
-  })
-  const extraUser = userSkills.filter((s) => !BUILTIN_SKILLS.find((b) => b.id === s.id))
-  return [...builtins, ...extraUser]
+function savePerUserSkills(userId: string, skills: StoredSkill[]): void {
+  fs.writeFileSync(getPerUserSkillsPath(userId), JSON.stringify(skills, null, 2), 'utf-8')
+}
+
+function getAllSkills(userId?: string): Skill[] {
+  const builtins: Skill[] = BUILTIN_SKILLS.map(b => ({ ...b }))
+  if (!userId) return builtins
+
+  const perUser = loadPerUserSkills(userId)
+  // Legacy migration: load old user-skills.json and migrate to per-user
+  const legacy = loadUserSkills()
+  const legacyNonBuiltin = legacy.filter(s => !BUILTIN_SKILLS.some(b => b.id === s.id))
+  if (legacyNonBuiltin.length > 0) {
+    const existing = new Set(perUser.map(s => s.id))
+    for (const s of legacyNonBuiltin) {
+      if (!existing.has(s.id)) {
+        perUser.push({ ...s, ownerUserId: userId })
+      }
+    }
+    savePerUserSkills(userId, perUser)
+    // Clear legacy after migration
+    const remaining = legacy.filter(s => BUILTIN_SKILLS.some(b => b.id === s.id))
+    fs.writeFileSync(getUserSkillsPath(), JSON.stringify(remaining, null, 2), 'utf-8')
+  }
+
+  return [...builtins, ...perUser.filter(s => !BUILTIN_SKILLS.some(b => b.id === s.id))]
 }
 
 export const skillService = {
-  /** List all skills (builtin + user-installed) */
-  list(): Skill[] {
-    return getAllSkills()
+  /** List skills visible to a given user (builtins + user-created + user-installed) */
+  list(userId?: string): Skill[] {
+    return getAllSkills(userId)
   },
 
   /** Search skills by keyword or natural language description */
-  search(query: string): SkillSearchResult[] {
+  search(query: string, userId?: string): SkillSearchResult[] {
     const lower = query.toLowerCase()
-    const all = [...BUILTIN_SKILLS, ...MARKET_SKILLS, ...loadUserSkills()]
+    const all = [...BUILTIN_SKILLS, ...MARKET_SKILLS, ...(userId ? loadPerUserSkills(userId) : [])]
     const unique = new Map<string, Skill>()
     for (const s of all) unique.set(s.id, s)
 
@@ -244,8 +277,8 @@ export const skillService = {
     return results
   },
 
-  /** Install a skill from the market */
-  install(skillId: string): SkillInstallResult {
+  /** Install a skill from the market (per-user) */
+  install(skillId: string, userId?: string): SkillInstallResult {
     const marketSkill = MARKET_SKILLS.find((s) => s.id === skillId)
     if (!marketSkill) {
       const existing = BUILTIN_SKILLS.find((s) => s.id === skillId)
@@ -257,8 +290,9 @@ export const skillService = {
       // In a real app, we'd prompt the user. Here we return warnings.
     }
 
-    const installed: Skill = {
+    const installed: StoredSkill = {
       ...marketSkill,
+      ownerUserId: userId,
       installed: true,
       enabled: true,
       installedAt: Date.now(),
@@ -266,63 +300,69 @@ export const skillService = {
       permissions: marketSkill.permissions?.map((p) => ({ ...p, granted: true })) || [],
     }
 
-    const userSkills = loadUserSkills()
-    const idx = userSkills.findIndex((s) => s.id === skillId)
-    if (idx >= 0) userSkills[idx] = installed
-    else userSkills.push(installed)
-    saveUserSkills(userSkills)
+    if (userId) {
+      const userSkills = loadPerUserSkills(userId)
+      const idx = userSkills.findIndex((s) => s.id === skillId)
+      if (idx >= 0) userSkills[idx] = installed
+      else userSkills.push(installed)
+      savePerUserSkills(userId, userSkills)
+    }
 
     return { success: true, skill: installed, warnings: marketSkill.securityWarnings }
   },
 
-  /** Uninstall a skill */
-  uninstall(skillId: string): SkillInstallResult {
-    const userSkills = loadUserSkills()
+  /** Uninstall a skill (per-user) */
+  uninstall(skillId: string, userId?: string): SkillInstallResult {
+    if (!userId) return { success: false, error: '需要登录' }
+    const userSkills = loadPerUserSkills(userId)
     const idx = userSkills.findIndex((s) => s.id === skillId)
     if (idx < 0) return { success: false, error: '技能未安装' }
     const removed = userSkills.splice(idx, 1)[0]
-    saveUserSkills(userSkills)
+    savePerUserSkills(userId, userSkills)
     return { success: true, skill: { ...removed, installed: false, enabled: false } }
   },
 
   /** Toggle skill enabled/disabled */
-  toggle(skillId: string, enabled: boolean): SkillInstallResult {
-    const all = getAllSkills()
+  toggle(skillId: string, enabled: boolean, userId?: string): SkillInstallResult {
+    const all = getAllSkills(userId)
     const skill = all.find((s) => s.id === skillId)
     if (!skill) return { success: false, error: '技能不存在' }
 
-    const userSkills = loadUserSkills()
-    const idx = userSkills.findIndex((s) => s.id === skillId)
-    const updated = { ...skill, enabled }
-    if (idx >= 0) userSkills[idx] = updated
-    else userSkills.push(updated)
-    saveUserSkills(userSkills)
+    if (userId) {
+      const userSkills = loadPerUserSkills(userId)
+      const idx = userSkills.findIndex((s) => s.id === skillId)
+      const updated = { ...skill, enabled } as StoredSkill
+      if (idx >= 0) userSkills[idx] = updated
+      else userSkills.push(updated)
+      savePerUserSkills(userId, userSkills)
+    }
 
-    return { success: true, skill: updated }
+    return { success: true, skill: { ...skill, enabled } }
   },
 
   /** Batch uninstall multiple skills */
-  batchUninstall(skillIds: string[]): { success: boolean; uninstalled: string[]; errors: string[] } {
+  batchUninstall(skillIds: string[], userId?: string): { success: boolean; uninstalled: string[]; errors: string[] } {
     const uninstalled: string[] = []
     const errors: string[] = []
     for (const id of skillIds) {
-      const result = this.uninstall(id)
+      const result = this.uninstall(id, userId)
       if (result.success) uninstalled.push(id)
       else errors.push(id)
     }
     return { success: errors.length === 0, uninstalled, errors }
   },
 
-  /** Create a new skill via AI description */
-  create(description: string): SkillInstallResult {
+  /** Create a new skill via AI description (owned by userId) */
+  create(description: string, userId?: string): SkillInstallResult {
     const id = `skill-user-${uuid()}`
-    const skill: Skill = {
+    const skill: StoredSkill = {
       id,
       name: description.slice(0, 30),
       description,
       category: 'custom',
       version: '0.1.0',
       author: 'User',
+      ownerUserId: userId,
       installed: true,
       enabled: true,
       source: 'upload',
@@ -333,25 +373,28 @@ export const skillService = {
         { type: 'network', description: '访问网络', granted: true },
       ],
     }
-    const userSkills = loadUserSkills()
-    userSkills.push(skill)
-    saveUserSkills(userSkills)
+    if (userId) {
+      const userSkills = loadPerUserSkills(userId)
+      userSkills.push(skill)
+      savePerUserSkills(userId, userSkills)
+    }
     return { success: true, skill }
   },
 
-  /** Upload a .skill package file */
-  uploadPackage(filePath: string): SkillInstallResult {
+  /** Upload a .skill package file (owned by userId) */
+  uploadPackage(filePath: string, userId?: string): SkillInstallResult {
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
       const pkg: SkillPackage = JSON.parse(content)
 
-      const skill: Skill = {
+      const skill: StoredSkill = {
         id: `skill-upload-${pkg.id || uuid()}`,
         name: pkg.name,
         description: pkg.description,
         category: pkg.category || 'custom',
         version: pkg.version,
         author: pkg.author,
+        ownerUserId: userId,
         installed: true,
         enabled: true,
         source: 'upload',
@@ -360,13 +403,40 @@ export const skillService = {
         size: pkg.size,
       }
 
-      const userSkills = loadUserSkills()
-      userSkills.push(skill)
-      saveUserSkills(userSkills)
+      if (userId) {
+        const userSkills = loadPerUserSkills(userId)
+        userSkills.push(skill)
+        savePerUserSkills(userId, userSkills)
+      }
       return { success: true, skill, warnings: skill.permissions?.map((p) => `需要${p.description}`) }
     } catch (err) {
       return { success: false, error: `技能包解析失败: ${err instanceof Error ? err.message : String(err)}` }
     }
+  },
+
+  /** Update an existing skill's metadata and content */
+  update(skillId: string, params: SkillUpdateParams, userId?: string): SkillInstallResult {
+    if (!userId) return { success: false, error: '需要登录' }
+    const userSkills = loadPerUserSkills(userId)
+    const idx = userSkills.findIndex((s) => s.id === skillId)
+    if (idx < 0) return { success: false, error: '技能不存在或无权限修改' }
+
+    const existing = userSkills[idx]
+    const updated: StoredSkill = {
+      ...existing,
+      name: params.name ?? existing.name,
+      description: params.description ?? existing.description,
+      category: params.category ?? existing.category,
+      version: params.version ?? existing.version,
+      author: params.author ?? existing.author,
+      permissions: params.permissions ?? existing.permissions,
+      triggers: params.triggers ?? existing.triggers,
+      icon: params.icon !== undefined ? params.icon : existing.icon,
+      updatedAt: Date.now(),
+    }
+    userSkills[idx] = updated
+    savePerUserSkills(userId, userSkills)
+    return { success: true, skill: updated }
   },
 
   /** Scan a .skill file for security warnings without installing */

@@ -1,5 +1,9 @@
-import OpenAI from 'openai'
+/**
+ * @deprecated  Phase 2: LLM calls now go through backend proxy /api/chat/proxy/send.
+ * This local AIService is kept only as a fallback for when the backend is unavailable.
+ */
 import type { FunctionDefinition } from '../../lib/types'
+import OpenAI from 'openai'
 
 interface AIConfig {
   apiKey: string
@@ -60,11 +64,13 @@ export class AIService {
     this.client = new OpenAI({
       apiKey: merged.apiKey,
       baseURL: merged.baseUrl,
+      timeout: 30000, // 30s timeout to avoid hanging
+      maxRetries: 1,
     })
     this.model = merged.model || 'gpt-4o'
   }
 
-  async plan(userInput: string, tools: FunctionDefinition[]): Promise<{
+  async plan(userInput: string, tools: FunctionDefinition[], memoryContext?: string): Promise<{
     type: 'plan' | 'chat'
     summary?: string
     steps?: Array<{ description: string; tool: string; params: Record<string, unknown> }>
@@ -74,31 +80,57 @@ export class AIService {
     const systemPrompt = SYSTEM_PROMPT.replace('<tools_placeholder>', toolsJson)
 
     try {
+      const messages: Array<{ role: 'system' | 'user'; content: string }> = [
+        { role: 'system', content: systemPrompt },
+      ]
+      if (memoryContext) {
+        messages.push({ role: 'system', content: memoryContext })
+      }
+      messages.push({ role: 'user', content: userInput })
+
       const response = await this.client.chat.completions.create({
         model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userInput },
-        ],
+        messages,
         temperature: 0.3,
         max_tokens: 4096,
       })
 
       const text = response.choices[0]?.message?.content || ''
 
+      // Try to extract JSON from ```json code fences
       const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-      const jsonStr = jsonMatch ? jsonMatch[1] : text
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1].trim())
+          return parsed
+        } catch {
+          // JSON parse failed (likely unescaped newlines inside content string).
+          // Fall through to extract content manually.
+        }
+        // Try to extract just the "content" field value
+        const contentMatch = jsonMatch[1].match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+        if (contentMatch) {
+          const content = contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+          return { type: 'chat' as const, content }
+        }
+        return { type: 'chat' as const, content: text }
+      }
 
+      // No JSON fences — try raw parse, fallback to plain text
       try {
-        const parsed = JSON.parse(jsonStr.trim())
+        const parsed = JSON.parse(text.trim())
         return parsed
       } catch {
-        return { type: 'chat', content: text }
+        return { type: 'chat' as const, content: text }
       }
     } catch (err) {
+      console.error('[AIService.plan] API call failed:', err)
+      const status = (err as any)?.status ? ` (HTTP ${(err as any).status})` : ''
+      const code = (err as any)?.code ? ` [${(err as any).code}]` : ''
+      const message = err instanceof Error ? err.message : JSON.stringify(err)
       return {
         type: 'chat',
-        content: `Failed to plan task: ${err instanceof Error ? err.message : String(err)}`,
+        content: `模型调用失败${status}${code}: ${message}`,
       }
     }
   }

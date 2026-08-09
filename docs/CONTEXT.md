@@ -25,29 +25,81 @@ AI 桌面工作台。用户通过对话与 AI 交互完成任务，支持模型�
 教 AI 完成特定任务的工具能力。如发邮件、查股价、调用 API。可通过插件安装或自创。
 
 **SOP 技能（SOP Skill）**：
-新增。图结构（节点+边）的状态机驱动技能。每个节点声明期望的用户信息、允许的操作和关联的能力引用。通过蒸馏编辑器从自然语言或文档生成。
+图结构（节点+边）的状态机驱动技能。每个节点声明期望的用户信息、允许的操作和关联的能力引用。通过 **SOP 创作台**（蒸馏编辑器）从自然语言或文档生成。
 生命周期：draft → published → archived。
 参考：StaffDeck 的「SOP Skill」概念。
+_Avoid_：把「专家 Scope 里从广场复制」误称为「创建 SOP」。
+
+**SOP 创作台（SOP Authoring）**：
+管理「我的 SOP 库」：新建空白、文档/自然语言蒸馏、流程图编辑、版本、发布/归档。产出的是库内 SopSkill，**不**直接等于专家已绑定列表。
+产品文档：`docs/prd/agents-003-sop-management.md`。
+_Avoid_：创作台、Scope 工作台混为一谈。
+
+**我的 SOP 库（My SOP Library）**：
+当前**登录用户有权看到**的 SopSkill 集合（owner 或被授予 view/edit），按 **租户 + 用户** 隔离。草稿默认仅创建者（或持 edit 者）可见可改；上广场后同租户可复制到自己的库。
+_Avoid_：把「我的库」理解成本机全员共享目录；把磁盘上全部 SOP 当成当前用户可见集。
+
+**SOP 权限边界（SOP ACL vs Expert Bindings）**：
+库侧 CRUD/发布权限由 `tenant_id` + `owner_user_id`（及可选 grants）决定；专家侧 `bindings.sopSkills` 只表示专家**运行时可引用**哪些 SOP。
+有权使用某专家 ≠ 自动拥有对应 SOP 的库内编辑权；拥有库编辑权 ≠ 自动写入某专家 bindings。
+身份/角色从属 **auth-001**；SOP ACL 为资源层（细则仍见 `agents-003`、`agents-002-sop`）。
+_Avoid_：用 Scope 归属或专家使用权替代库 ACL；在 SOP 域另建登录用户体系。
+
+### 身份与权限（auth）
+
+**租户成员（Tenant Member）**：
+隶属于某一租户、可登录 BspBuddy 的账号（`user_id` + `tenant_id`）。桌面 Phase 1 可用固定本地租户（如 `local`）与单用户会话模拟，语义仍是「成员」而非「本机匿名共享」。
+产品文档：`docs/prd/auth-001-access-control.md`。
+_Avoid_：把本机磁盘用户目录当成多成员可见的共享身份。
+
+**角色（Role / RBAC）**：
+租户内成员的全局角色，MVP 至少含 `member`（成员）与 `admin`（管理员）。决定能否管理成员、部分租户级运维；**不**替代具体资源的 owner/grants。
+_Avoid_：用「管理员」一词指代 Composer 上的「完全访问权限」沙箱模式。
+
+**资源 ACL（Resource ACL）**：
+挂在具体资源（SOP / 专家 / 知识库等）上的访问控制（owner、view/edit grants、广场可见性等）。细则由各领域 PRD/Tech Spec 定义；**身份（actor）从属 auth**。
+_Avoid_：把资源 ACL 写成另一套登录系统；与专家 bindings 混为一谈。
+
+**Agent 权限模式（Agent Permission Modes / 沙箱）**：
+对话任务侧的运行时工具沙箱：默认权限 vs 完全访问；高风险写删/命令/网络需确认。入口在任务输入框下方下拉（见 `docs/plans/10-permission.md`）。
+与 auth RBAC、资源 ACL **正交**——不决定谁是管理员、谁能改 SOP。
+_Avoid_：称为「权限系统」而不加「Agent/沙箱」限定，以致与 auth-001 混名。
+
+**专家 Scope（Expert Scope）**：
+当前正在配置资源的专家上下文（本地持久化当前专家 ID）。资源页（如 SOP 归属模式）只展示/维护该专家 `bindings` 子集。
+产品文档：`docs/prd/agents-002-editor-ux.md`。
+_Avoid_：全局全库勾选绑定；在专家编辑器内硬绑海量 SOP。
+
+**专家 Scope 工作台 / SOP 归属工作台**：
+在选定专家 Scope 下，查看该专家已有 SOP，并从广场或其他专家**复制归属**（写入 `bindings.sopSkills`）或移除。只做归属，**不做**蒸馏与内容创作。
+_Avoid_：在归属工作台里「新建 SOP 内容」。
 
 **知识库（Knowledge Base）**：
 新增。从文档提取、分桶、索引的个人知识容器。四级引用结构：文档（Document）→ 知识桶（Bucket）→ 知识块（Chunk）→ 知识概念（Concept）。
 参考：StaffDeck 的「Knowledge Base」概念。
 
 **广场（Square/Overall）**：
-新增。公开共享的专家资源池。用户可将自己创建的专家发布到广场，其他人可复制到自己的 scope 使用。复制后资源独立，后续可通过分支管理同步。
+租户内公开共享的资源池（`isOverall` / StaffDeck `is_overall`）。专家或 SOP 可发布到广场；同租户成员可复制到**自己的库**或专家 scope。复制后资源独立，后续可通过分支管理同步；源的编辑权仍归所有者/管理员。
 参考：StaffDeck 的「开放广场（Platform）」概念。
+_Avoid_：把上广场当成跨租户公开互联网；把「可复制」当成「可直接改源」。
 
 ### 技能体系
 
+**技能卡片（SkillCard）**：
+SOP 的 JSON 表示——nodes、edges、trigger_intents、interruption_policy 等，存于 `contentJson`。
+
 **技能蒸馏（Skill Distillation）**：
-新增。AI 从非结构化文档或自然语言中自动生成 SOP 技能 Card（JSON）的过程。包含生成→解析→修复→分段降级→规范化→反思的完整管道。
+AI 从非结构化文档或自然语言中自动生成 SOP 技能 Card（JSON）的过程。包含生成→解析→修复→分段降级→规范化→反思的完整管道。发生在 **SOP 创作台**。
 参考：StaffDeck 的「Skill Distillation」概念。
 
 **技能改写（Skill Rewriting）**：
-新增。基于自然语言指令对已有 SOP 技能的局部修改。
+基于自然语言指令对已有 SOP 技能的局部修改（创作台内）。
 
 **技能反思（Skill Reflection）**：
-新增。对蒸馏/改写产物的多维度自动校验。
+对蒸馏/改写产物的多维度自动校验。
+
+**技能分支（Skill Branch）**：
+专家对广场/源 SOP 的独立副本关系。状态语义参考 StaffDeck：`synced` / `diverged`。当前 Scope 工作台以 bindings ID 列表简化；完整分支协议后续对接。
 
 ### 执行引擎
 

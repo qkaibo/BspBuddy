@@ -1,0 +1,21 @@
+{
+  "id": "mock-chatcmpl",
+  "object": "chat.completion",
+  "created": 1786260693,
+  "model": "qwen3.6-27b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[Mock·qwen3.6-27b] 收到你的消息：你好，测试\n\n（这是本地 Mock 模型回复，仅用于打通专家对话链路。如需真实回答，请在「设置 → 专家模型」中配置真实模型。）"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 24,
+    "total_tokens": 36
+  }
+}

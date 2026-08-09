@@ -3,6 +3,7 @@ import { orchestrator } from './orchestrator'
 import { toolRegistry } from './tools/registry'
 import { memoryService } from './memory-service'
 import type { AgentMode, TaskPlan } from '../../lib/types'
+import { AIService, aiService } from './ai'
 
 const OFFICE_SYSTEM_PROMPT = `你是 BspBuddy，一个专业的办公助手。你帮助用户完成文档生成、数据处理、信息检索、报告撰写、PPT制作等办公任务。
 
@@ -60,7 +61,7 @@ const OFFICE_SYSTEM_PROMPT = `你是 BspBuddy，一个专业的办公助手。�
 export class OfficeAgent {
   private abortController: AbortController | null = null
 
-  async plan(userInput: string, mode: AgentMode): Promise<{
+  async plan(userInput: string, mode: AgentMode, aiOverride?: AIService): Promise<{
     type: 'plan' | 'chat'
     summary?: string
     steps?: Array<{ description: string; tool: string; params: Record<string, unknown> }>
@@ -68,7 +69,7 @@ export class OfficeAgent {
   }> {
     this.abortController = new AbortController()
 
-    const tools = toolRegistry.toFunctionDefinitions()
+    const tools = toolRegistry.toFunctionDefinitions(mode)
     const toolsJson = tools.map(t => `- **${t.name}**: ${t.description}`).join('\n')
     const modeText = mode === 'craft' ? 'Craft（直接执行）'
       : mode === 'plan' ? 'Plan（先生成计划，待用户确认后执行）'
@@ -92,7 +93,7 @@ export class OfficeAgent {
       : '（Craft模式，直接生成可执行计划）'
 
     try {
-      const result = await aiService.plan(userInput + modeHint, tools)
+      const result = await (aiOverride || aiService).plan(userInput + modeHint, tools)
 
       // Force chat mode in Ask mode
       if (mode === 'ask' && result.type === 'plan') {

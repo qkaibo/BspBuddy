@@ -6,7 +6,10 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:web": "cd apps/web && npx vite",
     "build": "electron-vite build",
+    "build:web": "cd apps/web && npx vite build",
+    "build:mobile": "cd apps/mobile && npx vite build",
     "preview": "electron-vite preview",
     "start": "electron ."
   },
@@ -17,13 +20,18 @@
       "output": "release"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "artifactName": "WorkBuddy-${version}-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "minimumSystemVersion": "12.0"
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "artifactName": "WorkBuddy-${version}-setup.${ext}",
       "verifyUpdateCodeSignature": false
     },
@@ -36,7 +44,9 @@
     },
     "protocols": {
       "name": "WorkBuddy",
-      "schemes": ["workbuddy"]
+      "schemes": [
+        "workbuddy"
+      ]
     },
     "publish": {
       "provider": "generic",
@@ -44,6 +54,7 @@
     }
   },
   "dependencies": {
+    "axios": "^1.19.0",
     "electron-updater": "^6.3.0",
     "mime-types": "^2.1.35",
     "openai": "^4.73.0",

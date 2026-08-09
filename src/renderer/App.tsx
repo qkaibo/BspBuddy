@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid'
 import { Sidebar } from '../components/Sidebar'
 import { WelcomeScreen } from '../components/WelcomeScreen'
 import { ChatPanel } from '../components/ChatPanel'
+import type { ActiveResource } from '../components/ConversationContextBar'
 import { ResultPanel } from '../components/ResultPanel'
 import { PluginPanel } from '../components/PluginPanel'
 import { ExpertCenter } from '../components/ExpertCenter'
@@ -12,6 +13,7 @@ import { ProjectPanel } from '../components/ProjectPanel'
 import { PricingPanel } from '../components/PricingPanel'
 import { DataPanel } from '../components/DataPanel'
 import { SettingsPanel } from '../components/SettingsPanel'
+import { MemberRolesPanel } from '../components/MemberRolesPanel'
 import { MailboxPanel } from '../components/MailboxPanel'
 import { ActivateMailbox } from '../components/ActivateMailbox'
 import { CloudAgentPanel } from '../components/CloudAgentPanel'
@@ -19,17 +21,20 @@ import { InspirationPanel } from '../components/InspirationPanel'
 import { AssistantPanel } from '../components/AssistantPanel'
 import { AssistantSettings } from '../components/AssistantSettings'
 import { FeedbackPanel } from '../components/FeedbackPanel'
+import { ModelConfigSettings } from '../components/ModelConfigSettings'
+import { ExpertModelCatalogPanel } from '../components/ExpertModelCatalogPanel'
+import { ContentShell } from '../components/ContentShell'
 import type { AgentMailbox } from '../lib/mailbox-types'
 import { useAgent } from '../hooks/useAgent'
 import { useSession } from '../hooks/useSession'
 import { createIpcClient } from '../lib/client'
-import { IPC_CHANNELS, AVAILABLE_MODELS } from '../lib/types'
+import { IPC_CHANNELS } from '../lib/types'
 import type { Artifact, Message, TaskPlan, ModelOption } from '../lib/types'
 import type { Expert, ExpertTeam } from '../lib/expert-types'
 
 const ipc = createIpcClient()
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'feedback'
 
 export default function App() {
   const { messages, activePlan, isProcessing, mode, setMode, modelId, setModelId, sendMessage, stopAgent, setMessages } = useAgent()
@@ -42,8 +47,26 @@ export default function App() {
   const [fileChanges, setFileChanges] = useState<Array<{ filePath: string; description: string; addedLines?: number; removedLines?: number }>>([])
   const [currentSessionId, setCurrentSessionId] = useState<string>()
   const [activeView, setActiveView] = useState<ViewType>('chat')
+  const [pluginsInitialTab, setPluginsInitialTab] = useState<'installed' | 'market' | 'skills' | 'general-skills' | 'mcp' | 'knowledge'>('installed')
   const [expertContext, setExpertContext] = useState<{ expert?: Expert; sessionId?: string }>({})
+  const [activeResources, setActiveResources] = useState<ActiveResource[]>([])
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: string }>({ id: 'user-1', name: 'User', role: 'admin' })
+
+  const syncAuthUser = useCallback(async () => {
+    try {
+      const me = await ipc.invoke(IPC_CHANNELS.AUTH_ME) as {
+        user?: { id: string; displayName?: string; username: string; roles: string[] }
+        error?: string
+      }
+      if (me?.user) {
+        setCurrentUser({
+          id: me.user.id,
+          name: me.user.displayName || me.user.username,
+          role: me.user.roles.includes('admin') ? 'admin' : 'member',
+        })
+      }
+    } catch { /* session may not be ready */ }
+  }, [])
 
   // Load sessions on startup
   useEffect(() => {
@@ -60,23 +83,27 @@ export default function App() {
         setCurrentSessionId(loaded[0]?.id)
       }
     })
-  }, [])
+    void syncAuthUser()
+  }, [syncAuthUser])
 
   // Auto-save after messages change
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
       const session = sessions.find((s) => s.id === currentSessionId)
       if (session) {
-        saveSession(currentSessionId, session.title, messages, activePlan, workspacePath, mode, modelId)
+        saveSession(currentSessionId, session.title, messages, activePlan, workspacePath, mode, modelId, expertContext, activeResources)
       }
     }
-  }, [messages, activePlan, currentSessionId])
+  }, [messages, activePlan, currentSessionId, expertContext, activeResources])
 
   const handleSend = async (t: string) => {
     if (messages.length === 0) {
       setSessions((prev) => prev.map((s) => s.active ? { ...s, title: t.slice(0, 40) } : s))
     }
-    const result = await sendMessage(t)
+    const expertInfo = expertContext?.expert
+      ? { name: expertContext.expert.name, title: expertContext.expert.title, methodology: expertContext.expert.methodology, toolChain: expertContext.expert.toolChain, persona: expertContext.expert.persona }
+      : undefined
+    const result = await sendMessage(t, modelId, expertContext?.expert?.id, expertInfo, activeResources)
     if (result.artifacts && result.artifacts.length > 0) {
       setArtifacts((prev) => [...prev, ...result.artifacts!])
       setPanelVisible(true)
@@ -100,6 +127,8 @@ export default function App() {
     setMessages([])
     setArtifacts([])
     setFileChanges([])
+    setExpertContext({})
+    setActiveResources([])
     setPanelVisible(false)
     setActiveView('chat')
   }
@@ -114,6 +143,8 @@ export default function App() {
       if (session.workspace) setWorkspacePath(session.workspace)
       if (session.mode) setMode(session.mode as any)
       if (session.modelId) setModelId(session.modelId)
+      if (session.expertContext) setExpertContext(session.expertContext as any)
+      if (session.activeResources) setActiveResources(session.activeResources as any)
     }
     setActiveView('chat')
   }
@@ -121,7 +152,16 @@ export default function App() {
   const hasMsg = messages.length > 0
 
   const handleSummonExpert = useCallback((expert: Expert, sessionId: string, welcomeMessage: string) => {
-    setExpertContext({ expert, sessionId })
+    // Create a new session for this expert
+    const id = sessionId || uuid()
+    const title = expert.title || expert.name
+    setSessions((p) => [{ id, title, date: 'Now', active: true, workspace: workspacePath }, ...p.map((s) => ({ ...s, active: false }))])
+    setCurrentSessionId(id)
+    setArtifacts([])
+    setFileChanges([])
+    setPanelVisible(false)
+    setExpertContext({ expert, sessionId: id })
+    setActiveResources([{ id: expert.id, type: 'expert' as const, name: title }])
     setActiveView('chat')
     setMessages([{
       id: uuid(),
@@ -129,7 +169,7 @@ export default function App() {
       content: welcomeMessage,
       timestamp: Date.now(),
     }])
-  }, [setMessages])
+  }, [workspacePath])
 
   const handleTeamExecute = useCallback(async (team: ExpertTeam, task: string) => {
     setActiveView('chat')
@@ -163,7 +203,7 @@ export default function App() {
   }, [])
 
   return (
-    <div style={{ height: '100vh', display: 'flex', background: 'var(--bg-root)', fontFamily: '-apple-system, sans-serif' }}>
+    <div className="bb-app-shell">
       <Sidebar
         sessions={sessions}
         onNewSession={handleNewSession}
@@ -171,14 +211,42 @@ export default function App() {
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
         activeView={activeView}
-        onNavigate={(view) => setActiveView(view)}
+        onNavigate={(view) => {
+          if (view === 'plugins') setPluginsInitialTab('installed')
+          setActiveView(view)
+        }}
       />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="bb-main-stage">
+        <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+          <ContentShell>
           {activeView === 'plugins' ? (
-            <PluginPanel onClose={handleNavigateToChat} workspacePath={workspacePath} />
+            <PluginPanel
+              key={`plugins-${pluginsInitialTab}`}
+              onClose={() => {
+                setPluginsInitialTab('installed')
+                handleNavigateToChat()
+              }}
+              workspacePath={workspacePath}
+              initialTab={pluginsInitialTab}
+            />
           ) : activeView === 'experts' ? (
-            <ExpertCenter onClose={handleNavigateToChat} onSummonExpert={handleSummonExpert} onTeamExecute={handleTeamExecute} />
+            <ExpertCenter
+              onClose={handleNavigateToChat}
+              onSummonExpert={handleSummonExpert}
+              onTeamExecute={handleTeamExecute}
+              onManageSop={() => {
+                setPluginsInitialTab('skills')
+                setActiveView('plugins')
+              }}
+              onManageSkill={() => {
+                setPluginsInitialTab('general-skills')
+                setActiveView('plugins')
+              }}
+              onManageMcp={() => {
+                setPluginsInitialTab('mcp')
+                setActiveView('plugins')
+              }}
+            />
           ) : activeView === 'memory' ? (
             <MemoryPanel onClose={handleNavigateToChat} />
           ) : activeView === 'connectors' ? (
@@ -198,10 +266,16 @@ export default function App() {
               onClose={handleNavigateToChat}
               onNavigateData={() => setActiveView('data')}
               onNavigateAssistant={() => setActiveView('assistant-settings')}
+              onNavigateMembers={() => setActiveView('member-roles')}
+              onNavigateModelConfig={() => setActiveView('model-config')}
+              onNavigateExpertModels={() => setActiveView('expert-model-catalog')}
+              onSessionChanged={() => { void syncAuthUser() }}
               onCheckUpdate={() => {
                 ipc.invoke(IPC_CHANNELS.UPDATE_CHECK)
               }}
             />
+          ) : activeView === 'member-roles' ? (
+            <MemberRolesPanel onBack={() => setActiveView('settings')} />
           ) : activeView === 'mailbox' ? (
             <MailboxPanel
               onClose={handleNavigateToChat}
@@ -229,6 +303,10 @@ export default function App() {
             <AssistantPanel onNavigateToSettings={() => setActiveView('assistant-settings')} />
           ) : activeView === 'assistant-settings' ? (
             <AssistantSettings onBack={() => setActiveView('settings')} />
+          ) : activeView === 'model-config' ? (
+            <ModelConfigSettings onBack={() => setActiveView('settings')} />
+          ) : activeView === 'expert-model-catalog' ? (
+            <ExpertModelCatalogPanel onBack={() => setActiveView('settings')} />
           ) : activeView === 'feedback' ? (
             <FeedbackPanel onClose={handleNavigateToChat} />
           ) : hasMsg ? (
@@ -239,6 +317,8 @@ export default function App() {
               mode={mode}
               workspacePath={workspacePath}
               modelId={modelId}
+              activeResources={activeResources}
+              onResourcesChange={setActiveResources}
               onModeChange={setMode}
               onModelChange={(m) => setModelId(m.id)}
               onSend={handleSend}
@@ -253,10 +333,10 @@ export default function App() {
               onSelectWorkspace={handleSelectWorkspace}
               workspacePath={workspacePath}
               modelId={modelId}
-              models={AVAILABLE_MODELS}
               onModelChange={handleModelChange}
             />
           )}
+          </ContentShell>
           {activeView === 'chat' && (
             <ResultPanel
               artifacts={artifacts}

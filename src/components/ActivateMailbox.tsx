@@ -7,6 +7,7 @@ import { Mail, Shield, Smartphone, CheckCircle2, ChevronRight, AlertTriangle } f
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
 import type { ActivationStep, ActivationState, AgentMailbox } from '../lib/mailbox-types'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -73,7 +74,7 @@ export function ActivateMailbox({ onComplete, onBack }: Props) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-root)', height: '100%' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
@@ -81,7 +82,7 @@ export function ActivateMailbox({ onComplete, onBack }: Props) {
         background: 'var(--bg-card)',
       }}>
         {onBack && (
-          <button onClick={onBack} style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex' }}>
+          <button type="button" onClick={onBack} aria-label="返回" style={{ padding: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex' }}>
             ←
           </button>
         )}
@@ -187,8 +188,13 @@ export function ActivateMailbox({ onComplete, onBack }: Props) {
               )}
 
               <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Phone Number</label>
+                <label htmlFor="mailbox-phone" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Phone Number</label>
                 <input
+                  id="mailbox-phone"
+                  name="tel"
+                  type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="13800000000"
@@ -202,9 +208,14 @@ export function ActivateMailbox({ onComplete, onBack }: Props) {
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>SMS Code</label>
+                <label htmlFor="mailbox-otp" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>SMS Code</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
+                    id="mailbox-otp"
+                    name="one-time-code"
+                    type="text"
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
                     value={smsCode}
                     onChange={(e) => setSmsCode(e.target.value)}
                     placeholder="6-digit code"
@@ -215,14 +226,14 @@ export function ActivateMailbox({ onComplete, onBack }: Props) {
                       color: 'var(--text-primary)', outline: 'none',
                     }}
                   />
-                  <button onClick={handleSendCode} disabled={sendingCode || !phone} style={{
+                  <button type="button" onClick={handleSendCode} disabled={sendingCode || !phone} style={{
                     padding: '10px 16px', borderRadius: 8, border: 'none',
                     background: phone ? 'var(--accent)' : 'var(--border)',
                     color: phone ? '#fff' : 'var(--text-tertiary)',
                     fontSize: 12, fontWeight: 600, cursor: phone ? 'pointer' : 'not-allowed',
                     whiteSpace: 'nowrap', fontFamily: 'inherit',
                   }}>
-                    {sendingCode ? 'Sending...' : 'Send Code'}
+                    {sendingCode ? 'Sending…' : 'Send Code'}
                   </button>
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}>
@@ -230,14 +241,14 @@ export function ActivateMailbox({ onComplete, onBack }: Props) {
                 </div>
               </div>
 
-              <button onClick={handleVerify} disabled={verifying || smsCode.length !== 6} style={{
+              <button type="button" onClick={handleVerify} disabled={verifying || smsCode.length !== 6} style={{
                 width: '100%', padding: '10px', borderRadius: 8, border: 'none',
                 background: smsCode.length === 6 ? 'var(--accent)' : 'var(--border)',
                 color: smsCode.length === 6 ? '#fff' : 'var(--text-tertiary)',
                 fontSize: 13, fontWeight: 600, cursor: smsCode.length === 6 ? 'pointer' : 'not-allowed',
                 fontFamily: 'inherit',
               }}>
-                {verifying ? 'Verifying...' : 'Verify & Activate'}
+                {verifying ? 'Verifying…' : 'Verify & Activate'}
               </button>
             </div>
           )}

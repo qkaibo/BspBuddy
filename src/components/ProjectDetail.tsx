@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from '../lib/types'
 import type { Project, ProjectTask, ProjectActivity, TaskStatus } from '../lib/project-types'
 import { ProjectAssets } from './ProjectAssets'
 import { ProjectInvite } from './ProjectInvite'
+import { panelRootStyle } from '../lib/panel-layout'
 
 const ipc = createIpcClient()
 
@@ -112,7 +113,7 @@ export function ProjectDetail({ project, currentUserId, currentUserName, current
   const isAdmin = currentUser?.role === 'admin' || project.members.some((m) => m.userId === currentUserId && m.role === 'admin')
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-root)' }}>
+    <div style={panelRootStyle()}>
       {/* Header */}
       <div style={{
         padding: '16px 24px', borderBottom: '1px solid var(--border)',
@@ -120,10 +121,12 @@ export function ProjectDetail({ project, currentUserId, currentUserName, current
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <button
+            type="button"
             onClick={onBack}
+            aria-label="返回项目列表"
             style={{ padding: 4, borderRadius: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={18} aria-hidden="true" />
           </button>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0, flex: 1 }}>{project.name}</h2>
           {isAdmin && (
@@ -317,15 +320,17 @@ export function ProjectDetail({ project, currentUserId, currentUserName, current
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateTask()}
-                placeholder="Create a new task..."
+                placeholder="Create a new task…" aria-label="新任务标题"
                 style={{
                   flex: 1, background: 'none', border: 'none', outline: 'none',
                   fontSize: 13, color: 'var(--text-primary)', fontFamily: 'inherit',
                 }}
               />
               <button
+                type="button"
                 onClick={handleCreateTask}
                 disabled={!newTaskTitle.trim()}
+                aria-label="创建任务"
                 style={{
                   padding: '6px 12px', borderRadius: 6, border: 'none',
                   background: newTaskTitle.trim() ? 'var(--accent)' : 'var(--border)',
@@ -334,7 +339,7 @@ export function ProjectDetail({ project, currentUserId, currentUserName, current
                   fontFamily: 'inherit',
                 }}
               >
-                <Send size={13} />
+                <Send size={13} aria-hidden="true" />
               </button>
             </div>
 
@@ -356,8 +361,10 @@ export function ProjectDetail({ project, currentUserId, currentUserName, current
                     }}
                   >
                     <button
+                      type="button"
                       onClick={() => handleTaskStatusChange(t.id, t.status)}
                       title={`Status: ${STATUS_LABELS[t.status]} — click to cycle`}
+                      aria-label={`切换任务状态，当前：${STATUS_LABELS[t.status]}`}
                       style={{
                         width: 18, height: 18, borderRadius: '50%',
                         border: `2px solid ${t.status === 'done' ? 'var(--success)' : t.status === 'in_progress' ? 'var(--accent)' : 'var(--border)'}`,
@@ -391,26 +398,30 @@ export function ProjectDetail({ project, currentUserId, currentUserName, current
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
+                        type="button"
                         onClick={() => handleShareTask(t.id)}
                         title="Share task"
+                        aria-label={`分享任务 ${t.title}`}
                         style={{
                           padding: 4, borderRadius: 4, border: 'none',
                           background: 'transparent', cursor: 'pointer',
                           color: 'var(--text-tertiary)',
                         }}
                       >
-                        <Share2 size={13} />
+                        <Share2 size={13} aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleTransferTask(t.id)}
                         title="Transfer task"
+                        aria-label={`转交任务 ${t.title}`}
                         style={{
                           padding: 4, borderRadius: 4, border: 'none',
                           background: 'transparent', cursor: 'pointer',
                           color: 'var(--text-tertiary)',
                         }}
                       >
-                        <GitBranch size={13} />
+                        <GitBranch size={13} aria-hidden="true" />
                       </button>
                     </div>
                   </div>

@@ -1,0 +1,31 @@
+---
+description: UI 布局与工作台设计原则（禁止纯表单页、脚手架当完成）
+globs: src/components/**/*.tsx,src/renderer/**/*.tsx
+alwaysApply: false
+---
+
+# UI 设计原则
+
+完整版见 [`docs/reference/ref-001-ui-design-principles.md`](../../docs/reference/ref-001-ui-design-principles.md)。
+
+## 与 ux-first 的分工
+
+| 规则 | 管什么 |
+|------|--------|
+| `ux-first.mdc` | 数据/交互可用性：真实数据源、选择器可绑定、加载/错误态、禁止假按钮与 raw ID |
+| **本规则** | 布局/工作台形态：禁止纯表单页、欢迎态=Composer、先闭环再后台、脚手架≠完成 |
+
+改选择器/IPC 空数据 → 看 ux-first；改欢迎屏/面板布局/「有页面就算完」 → 看本规则。
+
+## 硬约束（精炼）
+
+1. **布局跟权威文档** — 欢迎态/侧栏/Composer 以 `docs/reference/` 及相关 PRD 为准；旧 ASCII 三栏不是目标。`specs/` 已废弃。
+2. **视觉跟 DESIGN.md** — 新页面/面板必须遵循 [`DESIGN.md`](../../DESIGN.md)：`PanelChrome` + `.bb-*` 原语、主内容白纸、弱分割、悬浮 Composer、侧栏紧凑密度、强调色 `#2563eb`。禁止另起色板或营销促销条。
+3. **验收主路径** — 进入 → 选/填 → 回对话或见结果；不是「路由能开」。
+4. **禁止纯输入框页** — 须有空态指引 + 主 CTA + 示例/默认值。
+5. **欢迎态可直接发送** — Composer 与欢迎区同屏一体。
+6. **二级功能先闭环** — 插件/技能/专家/连接器：先进、能选、能回对话，再堆完整 CRUD。
+7. **脚手架 ≠ 上线** — 空列表 handler、假成功、无加载/错误态 → 不得标完成。
+8. **合并前可演示** — 真实应用里走通一条端到端主路径；仅 L1 不算过关。
+
+资源选择器数据与绑定细节 → `ux-first.mdc`；组件级视觉/原语 → `react-ui.mdc` + `DESIGN.md`。

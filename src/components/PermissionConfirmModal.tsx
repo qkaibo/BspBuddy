@@ -71,16 +71,22 @@ function ModeSwitchModal({ onConfirm, onCancel }: { onConfirm: () => void; onCan
   const [checked, setChecked] = useState(false)
 
   return (
-    <div style={{
+    <div
+      role="dialog"
+      aria-modal="true"
+      data-overlay="true"
+      style={{
       position: 'fixed', inset: 0, zIndex: 9999,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+      overscrollBehavior: 'contain',
     }}>
       <div style={{
         background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
         width: 420, maxWidth: '90vw', padding: 24,
         border: '1px solid var(--border)',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        overscrollBehavior: 'contain',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           <div style={{
@@ -170,16 +176,22 @@ function OperationModal({ request, onAllow, onDeny }: { request: PermissionReque
   }
 
   return (
-    <div style={{
+    <div
+      role="dialog"
+      aria-modal="true"
+      data-overlay="true"
+      style={{
       position: 'fixed', inset: 0, zIndex: 9999,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+      overscrollBehavior: 'contain',
     }}>
       <div style={{
         background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
         width: 440, maxWidth: '90vw', padding: 24,
         border: '1px solid var(--border)',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        overscrollBehavior: 'contain',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
@@ -188,7 +200,7 @@ function OperationModal({ request, onAllow, onDeny }: { request: PermissionReque
             background: 'rgba(79,110,247,0.1)', display: 'flex',
             alignItems: 'center', justifyContent: 'center',
           }}>
-            <Shield size={18} color="#4f6ef7" />
+            <Shield size={18} color="var(--accent)" />
           </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>权限确认</div>
@@ -232,8 +244,8 @@ function OperationModal({ request, onAllow, onDeny }: { request: PermissionReque
             padding: 12, marginBottom: 12, border: '1px solid rgba(79,110,247,0.12)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <Eye size={13} color="#4f6ef7" />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#4f6ef7' }}>建议的替代方案</span>
+              <Eye size={13} color="var(--accent)" />
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>建议的替代方案</span>
             </div>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               {alternatives.map((alt, i) => (
