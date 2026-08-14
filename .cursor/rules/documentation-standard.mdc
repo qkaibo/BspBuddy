@@ -1,85 +1,40 @@
 ---
-description: 文档目录结构、命名规范、模板格式。生成或修改文档时必须遵守。
+description: 文档目录、命名、front matter、PRD/Tech Spec 模板。编辑 docs/** 时遵守。
 globs: docs/**
-alwaysApply: true
+alwaysApply: false
 ---
 
 # 文档规范
 
-## 目录结构
+`specs/` 已废弃；新文档只写 `docs/`。先文档后代码见 `spec-driven-dev`。冲突时以 `docs/STANDARD.md` 为准。
+
+## 目录
 
 ```
 docs/
-├── README.md           ← 文档索引 + 进度看板 + 元数据规范
-├── CONTEXT.md          ← 领域术语表（Ubiquitous Language）
-├── STANDARD.md         ← 文档规范标准
-├── WORKFLOW.md         ← 文档生成工作流
-├── prd/                ← 产品需求文档（面向产品经理/用户）
-│   └── prd-###-slug.md
-├── tech-spec/          ← 技术规格（面向开发者）
-│   └── ts-###-slug.md
-├── plans/              ← 实现计划（分期任务 + 改动范围）
-└── reference/          ← 纯数据参考（API/枚举/流程）
-    └── ref-###-slug.md
+├── README.md / CONTEXT.md / STANDARD.md / WORKFLOW.md
+├── prd/  tech-spec/  plans/  reference/
 ```
 
-`specs/` 已废弃；新文档只写在 `docs/` 下。
+## 命名
 
-**先文档后代码**（无 PRD 不得开写功能实现）见 alwaysApply 规则 `spec-driven-dev.mdc`。
+`{domain}-{NNN}-{slug}.md`（域内不跳号）。例：`agents-001-expert-management.md`、plan 用两位 `agents-02-…`。
 
-
-## 命名规则（与 docs/STANDARD.md 对齐）
-
-采用**领域分段编号** `{domain}-{NNN}-{slug}.md`：
-
-- PRD：`docs/prd/agents-001-expert-management.md`
-- Tech Spec：`docs/tech-spec/agents-002-sop.md`
-- Plan：`docs/plans/agents-02-sop-management.md`（域内两位，子 plan 用 `agents-01-1`）
-- Reference：`docs/reference/ref-001-ui-design-principles.md`
-
-域内不跳号；跨域编号独立。详见 `docs/STANDARD.md`。
-
-## 元数据（YAML front matter）
-
-每个文档文件头部必须有：
+## Front matter
 
 ```yaml
 ---
 id: agents-001
 title: 中文标题
-type: prd          # prd / tech-spec / plan / reference
-related: [agents-001-api]  # 关联文档 ID 列表，无关联写 []
+type: prd   # prd | tech-spec | plan | reference
+related: []
 ---
 ```
 
-## PRD 模板（必须覆盖 8 个章节）
+## 模板要点
 
-1. **概述** — 一句话描述
-2. **用户场景** — 角色/场景/动机表
-3. **功能清单** — 编号列表 + 关联页面
-4. **数据模型** — 实体/关键字段表
-5. **页面与字段**（核心）
-   - ASCII 页面布局图
-   - 完整字段表（类型/必填/默认/来源）
-   - 按钮权限条件
-   - Action→Response 交互链
-6. **API 依赖** — 端点/触发/权限表
-7. **页面关系** — From/To/数据耦合
-8. **验收标准** — checklist
+**PRD（8 章）**：概述、场景、功能、模型、页面与字段（ASCII 布局 + 字段表 + 交互链 `→`）、API、页面关系、验收。
 
-## Tech Spec 模板（必须覆盖 7 个章节）
+**Tech Spec（7 章）**：概述、目标、API、模型、流程、安全、与 PRD 差异。
 
-1. **概述** — 技术范围
-2. **设计目标** — 技术约束/权衡
-3. **API 设计** — 端点/Schema/认证
-4. **数据模型** — 完整表结构
-5. **核心流程** — 时序/状态机
-6. **安全** — 加密/权限/租户隔离
-7. **与 PRD 的差异** — 实现偏差
-
-## 内容规则
-
-- 每个 PRD 必须包含 ASCII 页面布局图
-- 字段表至少含 4 列（字段/类型/必填/说明）
-- 交互链用 `→` 而非自然语言描述
-- 不要虚构字段——必须对标代码中的真实模型
+- 字段表 ≥4 列；交互用 `→`；字段必须对标真实模型，勿虚构。

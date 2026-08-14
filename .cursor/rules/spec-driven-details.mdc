@@ -1,0 +1,39 @@
+---
+description: 规格驱动细则——文件↔docs 对照表、禁止回退的产品坑、P3/Agents 优先级。改业务功能或不确定该读哪份 docs 时使用。
+alwaysApply: false
+---
+
+# 规格驱动细则
+
+## 常见文件 → 必读 docs
+
+| 代码路径 | docs |
+|---|---|
+| `src/components/ChatPanel.tsx` | `docs/plans/01-task-bar.md` 或 `agents-03-a2a-delegation.md` |
+| `ConversationContextBar.tsx` / `App.tsx` / `useAgent.ts` / `ipc-handlers.ts` | `docs/prd/agents-004-a2a-delegation.md` |
+
+新增文件：先保证 docs 有对应章节。
+
+## 违规信号（立刻停手补文档）
+
+- 准备改 `.tsx` JSX 结构，但还没打开任何 `docs/`
+- 觉得「改动太小不用写文档」
+- 用 `StrReplace` 挪组件位置，对应 plan 未开
+- 写完代码才打开 `docs/`
+
+## 已修过的坑（禁止回退）
+
+- Design → 只用 Ardot（勿换 Excalidraw/tldraw/Figma）
+- Mailbox → Agent Mail（勿做成通用 IMAP/SMTP）
+- 自动化推送 → 仅小程序
+- Agent 权限模式 UI → 输入框下方下拉（plan 10；**不是** auth RBAC）
+- SOP 库 → 按用户权限隔离（非本机全员共享）；身份/角色属 auth-001
+- auth RBAC → auth-001 / auth-01（勿与 plan 10 混名）
+
+## 优先级指针
+
+P3 与 Agents 域进度以 `docs/README.md` Plans 索引为准。Agents 进行中：专家管理 / Scope / SOP 创作台——实现前读对应 PRD；勿把本机共享库写成产品模型。
+
+## 实现后
+
+仅行为符合 PRD/plan 才更新 README 状态；UI 验收遵守 `acceptance-testing`（须 L3）。

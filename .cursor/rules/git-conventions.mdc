@@ -1,64 +1,34 @@
 ---
-description: Git 分支命名、提交信息规范、PR 流程等开发约定。生成或操作 Git 时必须遵守。
-globs: .git/**
-alwaysApply: true
+description: Git 分支命名与 Conventional Commits。创建分支、写 commit message 或开 PR 时使用。
+alwaysApply: false
 ---
 
 # Git 约定
 
-## 分支命名
+## 分支
+
+`<type>/<描述>`：`feature/` | `fix/` | `chore/` | `docs/`  
+例：`feature/expert-management`、`fix/chat-crash`
+
+## Commit（Conventional Commits）
+
+`<type>: <英文简述>`，≤72 字符，小写开头。
+
+| type | 用途 |
+|---|---|
+| `feat` / `fix` / `chore` / `docs` / `refactor` / `test` / `style` | 功能 / 修复 / 杂项 / 文档 / 重构 / 测试 / 格式 |
 
 ```
-<type>/<描述>
-```
-
-| type | 说明 |
-|------|------|
-| `feature/` | 新功能开发 |
-| `fix/` | Bug 修复 |
-| `chore/` | 杂项（依赖更新、配置调整、重构等） |
-| `docs/` | 文档变更 |
-
-**示例**：`feature/expert-management`、`fix/chat-crash`、`chore/upgrade-electron`
-
-## 提交信息（Conventional Commits）
-
-```
-<type>: <简短描述>
-```
-
-| type | 说明 | 示例 |
-|------|------|------|
-| `feat` | 新功能 (feature) | `feat: add expert editor modal` |
-| `fix` | Bug 修复 | `fix: stop button not working on rapid click` |
-| `chore` | 杂项（构建、依赖、配置） | `chore: upgrade electron to v30` |
-| `docs` | 文档 | `docs: add agents-001 expert management` |
-| `refactor` | 重构（不改行为） | `refactor: extract IPC handler to separate file` |
-| `test` | 测试 | `test: add unit tests for expert service` |
-| `style` | 代码格式（不影响逻辑） | `style: format with prettier` |
-
-**规则**：
-- 描述用英文，小写开头
-- 不超过 72 字符
-- 禁止写 `feat: 添加 xxx`（中英混用），统一用英文
-- 不要写 `update code`、`fix bug` 这类无意义描述——说明改了什么
-
-**示例**：
-```
-# 正确
+# ✅
 feat: add expert editor with SOP binding
 fix: resolve session save race condition
-refactor: extract permission check to middleware
 
-# 错误
-feat: 添加专家编辑器    ← 不要用中文
-update code              ← 无意义
-fix: bug                 ← 太模糊
+# ❌
+feat: 添加专家编辑器
+update code
+fix: bug
 ```
 
-## PR / 合并流程
+## PR
 
-- 功能分支从 `main` 拉出，开发完成后合并回 `main`
-- 合并前确认所有改动通过 lint 和构建
-- 提交信息遵循 Conventional Commits
-- 一个 PR 聚焦一个功能域，避免混入无关改动
+从 `main` 拉出 → lint/构建通过 → 单域聚焦 → 合回 `main`。
