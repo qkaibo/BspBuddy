@@ -2,7 +2,7 @@
 id: agents-002
 title: 专家资源 — StaffDeck Scope 工作台
 type: prd
-related: [agents-001, agents-003, agents-001-api]
+related: [agents-001, agents-003, agents-001-api, skills-001, skills-002, skills-003]
 ---
 
 ## 1. 概述
@@ -29,6 +29,7 @@ related: [agents-001, agents-003, agents-001-api]
 | SOP：从广场/同事复制到专家 | ✅ | — |
 | SOP：新建 / 蒸馏 / 编辑内容 / 发布 | ❌ | ✅ |
 | 通用技能：个人目录 + 安装/卸载 | ✅ | — |
+| 企业技能商店发现 / L1–L3 / Agent 一键安装与 runtime | ❌ 见 skills-001～003 | — |
 | MCP：直接添加 + 测试连接 + 移除 | ✅ | — |
 | AI 模型：绑定/更换专家专属模型 | ✅ | — |
 
@@ -145,6 +146,16 @@ related: [agents-001, agents-003, agents-001-api]
 - 广场视图仅展示只读的技能列表
 - 创建的技能仅创建者可见，可安装到自己管理的专家
 - ✎ 编辑按钮在每张技能卡片右侧，点击后弹出全屏编辑器 modal
+
+#### 内置示例：MCP 回复引用规范（`mcp-reply-citation`）
+
+| 项 | 说明 |
+|---|---|
+| 类型 | 指令型 General Skill（仅 SKILL.md，无脚本，只 `operation=read`） |
+| 作用 | 专家通过 MCP 查询后，须在回复末尾标注「本次调用 MCP：{服务器名} / {工具名}」 |
+| Seed | 启动时 upsert 到 `general_skills`，并挂入 open gallery（否则 `GENERAL_SKILL_LIST` 看不到）；对已绑定 MCP 的专家自动安装 |
+| 手动安装 | SkillsPanel → 搜索「MCP 回复引用」→ [安装] 到当前专家；H618 等已有 MCP 的专家应出现在「已安装」 |
+| 限制 | 不强制追加；模型未 read 该技能或忘记格式时可能漏写 |
 
 ### 5.2b 技能编辑器（SkillsPanel 内联 modal）
 
@@ -296,16 +307,23 @@ SkillsPanel 技能卡片 → [✎ 编辑]
   → 切换到「模型」Tab → 只读显示当前模型名 + "请联系管理员"
   → 无保存按钮
 
-### 运行时（A2A）
+### 运行时（A2A）— 强制规则
+
+> **专家对话必须走 A2A → 服务端 AgentLoop。** 本地 Sidecar / AIService / chat proxy **不得**作为专家对话主路径。
+> 原因：MCP / Skill / Knowledge 能力清单只在服务端 `HarnessV2Engine` 构建；本地路径看不到服务器端绑定。
 
 用户召唤专家 → 发消息
-  → _planViaBackend: expertId 存在 → 不传 model_config_id
-  → 后端 _get_request_model
-    → request.model_config_id 为 None
-    → model_for_agent(tenant_id, agent_id, "default")
-    → AgentModelBinding.expert_model_catalog_id
-    → ExpertModelCatalog 条目 → provider + api_key + model
-    → 费用归属于该 ExpertModelCatalog 条目的 api_key 账户
+  → EXECUTE_TASK 检测到 `expertId` → **立即** `_planViaA2A(expertId, ...)`
+  → POST `/a2a/agents/{agentId}/tasks`（SSE）
+    → AgentLoop → HarnessV2Engine
+    → CapabilityManifestBuilder（含 MCP / Skill / Knowledge）
+    → 模型由服务端 `model_for_agent` 解析（ExpertModelCatalog）
+  → 客户端 SSE：`timeout` ≥ 10 分钟（多轮 MCP/工具易超 2 分钟；过短会 `aborted`/`ECONNRESET`）
+  → 流中断时若已有 `stream_delta`/`complete` 文本，优先返回已收到内容，避免整轮报「暂时不可用」
+  → ⛔ 禁止：因 `modelId` 以 `local_` 开头而走 Sidecar
+  → ⛔ 禁止：Sidecar 失败后回退本地 AIService（会丢失全部服务器能力）
+  → ⛔ 禁止：A2A 失败后静默回退 chat proxy（chat proxy 无工具清单）
+  → A2A 完全失败（无任何正文）时：向用户返回明确错误（「专家服务暂时不可用」），不假装成功回答
 ```
 
 ---
@@ -327,6 +345,20 @@ SkillsPanel 技能卡片 → [✎ 编辑]
 | 技能上传 | `skill:upload` | — |
 | 模型绑定 | `agent:models` | 写入 AgentModelBinding(expert_model_catalog_id, role="default")，admin only |
 
+### 6.1 数据所有权原则
+
+> **专家系统的所有数据必须在服务器端。** 专家的 agent loop 运行在服务器（`HarnessV2Engine`），只读数据库 `AgentResourceBinding`。任何存在于本地 JSON 的绑定数据在服务端对话中完全不可见。
+
+| 资源类型 | 存储位置（Phase D 后） | agent loop 可见 |
+|---|---|---|
+| SOP Skill | 服务器 `agent_resource_bindings`（`resource_type='skill'`） | ✅ |
+| General Skill | 服务器 `agent_resource_bindings`（`resource_type='general_skill'`） | ✅ |
+| **MCP 服务器** | **服务器 `agent_resource_bindings`（`resource_type='mcp'`）** | **✅** |
+| 知识库 | 服务器 `agent_resource_bindings`（`resource_type='knowledge_base'`） | ✅ |
+| 工具 | 服务器 `agent_resource_bindings`（`resource_type='tool'`） | ✅ |
+
+**迁移路径**：本地 `binding-overrides.json` 中 `mcpServers` 字段一次性迁移到后端 `agent_resource_bindings` → `resource_type='mcp'`，迁移后不再写入本地。
+
 ---
 
 ## 7. 页面关系
@@ -343,13 +375,16 @@ SkillsPanel 技能卡片 → [✎ 编辑]
 ### 7.1 执行链路：配置到运行时
 
 ```
-┌─ 配置层（本次实现）──────────────────┐
+┌─ 配置层（Phase D 改造后）─────────────┐
 │                                      │
 │  SkillsPanel → [安装] → RESOURCE_IMPORT │
-│  McpPanel    → [添加] → RESOURCE_IMPORT │
+│  McpPanel    → [安装] → RESOURCE_IMPORT │
 │         │                            │
-│         ├─ 本地: ExpertBindings JSON │
-│         └─ 后端: AgentResourceBinding 表 │
+│         │  ⛔ 不再写本地 binding-overrides.json
+│         │  ✅ 直接写后端 AgentResourceBinding 表
+│         │     resource_type="general_skill" │
+│         │     resource_type="mcp"          │
+│         │     resource_type="skill"        │
 │                                      │
 ├─ 运行时层（后端 HarnessV2Engine）────┤
 │                                      │
@@ -358,10 +393,19 @@ SkillsPanel 技能卡片 → [✎ 编辑]
 │    → CapabilityManifestBuilder       │
 │      .build(agent_id)                │
 │      ├─ 读 AgentResourceBinding      │
+│      │   resource_type="skill"        │
+│      │   → 专家的 SOP 技能列表        │
 │      │   resource_type="general_skill"│
-│      │   → 专家已安装的技能列表        │
+│      │   → 专家已安装的通用技能列表    │
 │      │   resource_type="tool"         │
-│      │   → 专家的 MCP 工具列表        │
+│      │   → 专家的内置工具列表         │
+│      │   resource_type="mcp"          │
+│      │   → 专家的 MCP 服务器列表      │
+│      │     → 对每个 MCPServer 获取    │
+│      │       discovered_tools         │
+│      │     → 注入 capability manifest │
+│      │   resource_type="knowledge_base"│
+│      │   → 专家的知识库列表           │
 │      ├─ 冻结为 CapabilityManifest    │
 │      └─ project → LLM 可见的能力清单  │
 │                                      │

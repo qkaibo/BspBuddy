@@ -133,3 +133,66 @@ RESOURCE_UNBIND({ targetAgentId, resourceType, resourceIds })
 - [ ] 后端不可达时安装不中断（synced=false，本地仍生效）
 - [ ] 后端已有现有绑定不被误删（PUT 全量合并而非覆盖）
 - [ ] L2：`curl` 验证安装后的绑定可见
+
+### Phase D：MCP 服务器端存储（2026-08-09 新增）
+
+**背景**：当前 MCP 绑定存在本地 `binding-overrides.json`（`mcpServers` 字段），以 JSON string 存储 MCP 名称+URL。后端 `agent_resource_bindings` 表不支持 `resource_type='mcp'`，导致服务端 agent loop 完全看不到专家的 MCP 工具。
+
+**原则**：专家系统的所有数据必须在服务器端——因为专家的 agent loop 运行在服务器上。
+
+**方案**：
+
+```
+MCP 绑定流程（改造后）:
+│
+├─ 1. 用户在 McpPanel 选择/添加 MCP 服务器
+│     → 写入 MCPServer 表（如尚未存在）
+│     → 返回 MCPServer.id（如 mcpsrv_xxx）
+│
+├─ 2. 用户点击「安装到专家」
+│     → RESOURCE_IMPORT({ resourceType: "mcp", resourceIds: [MCPServer.id] })
+│       ├─ 本地：不再写 binding-overrides.json（Phase D 废弃本地 MCP 存储）
+│       └─ 后端：PUT /api/enterprise/agents/{agentId}/resources
+│           body: { resources: [...existing_bindings, { resource_type: "mcp", resource_id: "mcpsrv_xxx", status: "active" }] }
+│
+├─ 3. CapabilityManifestBuilder.build(agent_id)
+│     → 查 agent_resource_bindings (resource_type='mcp', status='active')
+│     → 对每条 mcp 绑定，查 MCPServer + 已发现的 tools 列表
+│     → 将所有 MCP 工具注入 agent 的 capability manifest
+│     → agent loop 自主决定调用哪个 MCP 工具
+│
+├─ 4. 用户点击「从专家移除」
+│     → RESOURCE_UNBIND({ resourceType: "mcp", resourceIds: ["mcpsrv_xxx"] })
+│       └─ 后端：PUT 全量替换（过滤掉指定 resource_id）
+└─
+```
+
+**资源 ID 映射（修订后）**：
+
+| 资源来源 | 本地存储 | 后端 resource_type | 后端 resource_id | 同步策略 |
+|---|---|---|---|---|
+| FastAPI GeneralSkill | `binding-overrides.json` → 废弃 | `general_skill` | `GeneralSkill.id` | PUT 全量同步 |
+| MCP 服务器 | ~~`binding-overrides.json`~~ **废弃** | **`mcp`**（新增） | `MCPServer.id`（如 `mcpsrv_xxx`） | PUT 全量同步 |
+| SOP Skill | `binding-overrides.json` → 废弃 | `skill` | `Skill.id` | PUT 全量同步 |
+
+**改动清单**：
+
+```
+Phase D 改动文件:
+├── backend/app/db/models.py                 ← AgentResourceBinding 无 schema 变化（resource_type 是 string）
+├── backend/app/core/capability_manifest.py  ← CapabilityManifestBuilder.build() 增加 resource_type='mcp' 解析
+├── src/main/services/ipc-handlers.ts        ← RESOURCE_IMPORT/UNBIND: MCP 路径改走服务器 API
+├── src/main/services/expert-service.ts      ← addBinding/unbindResources: MCP 不再写本地 JSON
+├── src/lib/types.ts                         ← 如需新的 IPC channel（视情况）
+├── docs/plans/agents-01-2-bindings-sync.md  ← 本文件
+└── docs/prd/agents-002-editor-ux.md         ← MCP 章节 + 运行时链路
+```
+
+**验收标准（Phase D）**：
+
+- [ ] 用户安装 MCP 到专家 → 后端 `agent_resource_bindings` 出现 `resource_type='mcp'` 记录
+- [ ] 用户从专家移除 MCP → 后端对应绑定消失
+- [ ] `CapabilityManifestBuilder.build(H618_agent_id)` 返回的 manifest 包含 MCP 工具
+- [ ] 本地 `binding-overrides.json` 中不再有 `mcpServers` 写入（已有数据做一次性迁移）
+- [ ] 专家卡片 UI 的 MCP 数量从后端 API 读取（不再是本地 JSON）
+- [ ] L2：`curl GET /api/enterprise/agents/{agentId}/resources` → 返回含 `resource_type=mcp` 的绑定列表

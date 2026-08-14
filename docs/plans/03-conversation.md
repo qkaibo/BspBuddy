@@ -11,7 +11,8 @@
 
 | 功能点 | 实现位置 | 说明 |
 |--------|----------|------|
-| 对话消息列表 | `ChatPanel.tsx` | user/assistant 角色渲染，Markdown 内容 |
+| 对话消息列表 | `ChatPanel.tsx` | user/assistant 角色渲染；**助手气泡用 Markdown**（标题/列表/表格/浅灰行号代码块），见 `ChatMarkdown.tsx` |
+| 左侧任务列表排序 | `Sidebar.tsx` + `session:list` / `App.tsx` | **最近使用置顶**：按 `updatedAt`（缺省用文件 mtime）降序；新建/切换/有消息保存后该项移到顶部 |
 | 输入框 | `ChatPanel.tsx` textarea | Enter 发送，Shift+Enter 换行 |
 | 拖拽上传 | `UploadZone.tsx` → onDrop | 读取 fileName + path + size，显示 chip |
 | Ctrl+V 粘贴 | `UploadZone.tsx` → onPaste | 图片转 dataURL，其他文件显示 chip |

@@ -1,0 +1,341 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "专家Agent 数字人架构 — MCP Bridge + CocoIndex 知识库",
+    "subtitle": "Desktop/IDE → AgentLoop → MCP → CocoIndex（Console 驱动学习 + Qdrant/Neo4j/GPU）",
+    "output": "bspbuddy-expert-agent.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "access",
+        "label": "左端双入口",
+        "focus": ["ide", "electron", "mcp-bridge", "ipc-main", "a2a", "agent-loop"],
+        "note": "Desktop IPC / IDE MCP Bridge → A2A → AgentLoop。"
+      },
+      {
+        "id": "mcp-knowledge",
+        "label": "MCP 知识检索",
+        "focus": ["tool-exec", "coco-mcp", "qdrant", "neo4j", "gpu"],
+        "note": "Tool Executor → CocoIndex MCP → Qdrant/Neo4j/GPU。"
+      },
+      {
+        "id": "coco-build",
+        "label": "知识库搭建",
+        "focus": ["coco-console", "prefect", "coco-mcp", "qdrant", "neo4j", "gpu"],
+        "note": "Console 控学习/索引；Prefect 编排；MCP 写检索；GPU 嵌入。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "ide",
+      "type": "external",
+      "label": "IDE / Cursor",
+      "sublabel": "MCP Client · stdio",
+      "tag": "规划",
+      "pos": [40, 80],
+      "size": [140, 60]
+    },
+    {
+      "id": "electron",
+      "type": "external",
+      "label": "Electron 桌面",
+      "sublabel": "ChatPanel · IPC",
+      "pos": [40, 220],
+      "size": [140, 60]
+    },
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "浏览器",
+      "sublabel": "专家 Web · :8699",
+      "pos": [40, 360],
+      "size": [140, 60]
+    },
+    {
+      "id": "mcp-bridge",
+      "type": "backend",
+      "label": "专家 MCP Bridge",
+      "sublabel": "list_agents / chat",
+      "tag": "规划",
+      "pos": [240, 80],
+      "size": [160, 60]
+    },
+    {
+      "id": "renderer",
+      "type": "frontend",
+      "label": "共享渲染层",
+      "sublabel": "React",
+      "pos": [240, 220],
+      "size": [140, 60]
+    },
+    {
+      "id": "ipc-main",
+      "type": "backend",
+      "label": "Main + IPC",
+      "sublabel": "ipc-handlers",
+      "pos": [440, 220],
+      "size": [140, 60]
+    },
+    {
+      "id": "rest-api",
+      "type": "backend",
+      "label": "FastAPI :52020",
+      "sublabel": "REST · 多租户",
+      "pos": [440, 80],
+      "size": [150, 60]
+    },
+    {
+      "id": "a2a",
+      "type": "backend",
+      "label": "A2A Router",
+      "sublabel": "tasks SSE",
+      "pos": [660, 150],
+      "size": [140, 60]
+    },
+    {
+      "id": "agent-loop",
+      "type": "backend",
+      "label": "AgentLoop",
+      "sublabel": "数字人执行流水线",
+      "tag": "核心",
+      "pos": [860, 150],
+      "size": [150, 60]
+    },
+    {
+      "id": "tool-exec",
+      "type": "backend",
+      "label": "Tool Executor",
+      "sublabel": "HTTP / MCP",
+      "pos": [1080, 150],
+      "size": [150, 60]
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "agent · session · skill",
+      "pos": [860, 300],
+      "size": [150, 56]
+    },
+    {
+      "id": "llm",
+      "type": "cloud",
+      "label": "外部 LLM",
+      "sublabel": "DeepSeek / OpenAI",
+      "pos": [860, 40],
+      "size": [140, 56]
+    },
+    {
+      "id": "coco-console",
+      "type": "backend",
+      "label": "AOSP Learning Console",
+      "sublabel": "FastAPI :8699 + Vue3",
+      "pos": [1320, 40],
+      "size": [180, 60]
+    },
+    {
+      "id": "prefect",
+      "type": "backend",
+      "label": "Prefect Server",
+      "sublabel": ":4200 工作流编排",
+      "pos": [1560, 40],
+      "size": [160, 60]
+    },
+    {
+      "id": "coco-mcp",
+      "type": "backend",
+      "label": "CocoIndex MCP Server",
+      "sublabel": "search_aosp · 学习/索引",
+      "tag": "核心",
+      "pos": [1320, 150],
+      "size": [190, 60]
+    },
+    {
+      "id": "qdrant",
+      "type": "database",
+      "label": "Qdrant :6333",
+      "sublabel": "dense+sparse · 547K chunks",
+      "pos": [1320, 300],
+      "size": [180, 60]
+    },
+    {
+      "id": "neo4j",
+      "type": "database",
+      "label": "Neo4j 代码图谱",
+      "sublabel": "调用链 / 符号关系",
+      "pos": [1560, 300],
+      "size": [160, 60]
+    },
+    {
+      "id": "gpu",
+      "type": "cloud",
+      "label": "GPU · RTX 5060 Ti",
+      "sublabel": "BGE-M3 fp16 嵌入",
+      "tag": "CUDA",
+      "pos": [1780, 150],
+      "size": [160, 60]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "用户接入",
+      "wraps": ["ide", "electron", "browser"]
+    },
+    {
+      "kind": "security-group",
+      "label": "专家Agent 后端",
+      "wraps": ["mcp-bridge", "rest-api", "renderer", "ipc-main", "a2a", "agent-loop", "tool-exec", "sqlite"]
+    },
+    {
+      "kind": "region",
+      "label": "CocoIndex 知识引擎",
+      "wraps": ["coco-console", "prefect", "coco-mcp", "qdrant", "neo4j", "gpu"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ide-bridge",
+      "from": "ide",
+      "to": "mcp-bridge",
+      "label": "MCP stdio",
+      "variant": "emphasis"
+    },
+    {
+      "id": "bridge-api",
+      "from": "mcp-bridge",
+      "to": "rest-api"
+    },
+    { "id": "ui-render", "from": "electron", "to": "renderer" },
+    {
+      "id": "ipc-call",
+      "from": "renderer",
+      "to": "ipc-main",
+      "label": "IPC",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ipc-a2a",
+      "from": "ipc-main",
+      "to": "a2a",
+      "label": "A2A",
+      "variant": "emphasis"
+    },
+    {
+      "id": "browser-api",
+      "from": "browser",
+      "to": "rest-api",
+      "variant": "dashed"
+    },
+    {
+      "id": "browser-coco",
+      "from": "browser",
+      "to": "coco-console",
+      "label": ":8699",
+      "variant": "dashed"
+    },
+    {
+      "id": "api-loop",
+      "from": "rest-api",
+      "to": "a2a",
+      "variant": "dashed"
+    },
+    { "id": "a2a-loop", "from": "a2a", "to": "agent-loop" },
+    { "id": "loop-tool", "from": "agent-loop", "to": "tool-exec" },
+    {
+      "id": "tool-coco",
+      "from": "tool-exec",
+      "to": "coco-mcp",
+      "label": "MCP 知识检索",
+      "variant": "emphasis"
+    },
+    {
+      "id": "loop-sqlite",
+      "from": "agent-loop",
+      "to": "sqlite",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "loop-llm",
+      "from": "agent-loop",
+      "to": "llm",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "console-mcp",
+      "from": "coco-console",
+      "to": "coco-mcp",
+      "label": "控制学习/索引",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "prefect-mcp",
+      "from": "prefect",
+      "to": "coco-mcp",
+      "label": "编排",
+      "variant": "dashed"
+    },
+    {
+      "id": "mcp-qdrant",
+      "from": "coco-mcp",
+      "to": "qdrant",
+      "label": "写入/检索",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "mcp-neo4j",
+      "from": "coco-mcp",
+      "to": "neo4j",
+      "label": "Cypher",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "mcp-gpu",
+      "from": "coco-mcp",
+      "to": "gpu",
+      "label": "嵌入推理",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "接入层",
+      "items": [
+        "Desktop：IPC → A2A → AgentLoop",
+        "IDE：MCP stdio → 专家 MCP Bridge（规划）",
+        "浏览器：专家 Web + CocoIndex Console :8699"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "AgentLoop",
+      "items": [
+        "数字人执行流水线 · Tool Executor 支持 MCP",
+        "运行时元数据落 SQLite",
+        "知识检索不直连库，经 CocoIndex MCP"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "CocoIndex 知识库搭建",
+      "items": [
+        "Console :8699 控制学习/索引",
+        "Prefect :4200 编排 · MCP 统一对外",
+        "Qdrant 547K chunks · Neo4j 图谱 · GPU BGE-M3 fp16"
+      ]
+    }
+  ]
+}

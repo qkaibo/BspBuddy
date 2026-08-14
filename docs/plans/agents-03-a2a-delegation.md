@@ -489,6 +489,133 @@ App.tsx handleSelectSession(id)
 
 ---
 
+## 四之附：Phase F — A2A 专家对话延迟优化
+
+### F1. 问题
+
+召唤绑定了 MCP/技能的专家（如 QCM4490）后，对话体感严重卡顿：长时间 loading 后突然出全文。根因：
+
+1. harness_v2 把 `answer_only` 强制抬成 conversation task → 多轮 LLM + MCP
+2. 有 task 结果时仍强制再跑一次 Response LLM
+3. Electron `_planViaA2A` / `useAgent` 等 SSE 整轮结束后才插入助手消息
+4. 假流式每 8 字 `db.commit`；能力鉴权每次 `CapabilityManifestBuilder.build`
+
+### F2. 改动
+
+| 文件 | 改动 |
+|------|------|
+| `backend/app/core/harness_v2_engine.py` | 有 MCP/技能时：仅**闲聊**保留 `answer_only`；业务问题仍抬升 conversation（Planner 看不到 MCP，否则会空答） |
+| `backend/app/core/response_generator.py` | Harness 已产出可用 reply 时跳过最终重写 LLM |
+| `backend/app/core/harness_capability_invoker.py` | 单次 run 内缓存授权 manifest |
+| `backend/app/core/agent_loop.py` | v2 假流式 delta 不逐 chunk commit；加大 chunk |
+| `backend/app/a2a/router.py` | SSE event 名取 `event` 字段 |
+| `src/lib/types.ts` | 新增 `A2A_CHAT_STREAM` |
+| `src/main/services/ipc-handlers.ts` | `_planViaA2A` 边收边 `webContents.send` |
+| `src/hooks/useAgent.ts` | 预插助手气泡，订阅流式 delta |
+| `src/components/ChatMarkdown.tsx` + `ChatPanel.tsx` | 助手消息 Markdown：GFM 表格；**代码块浅灰底 + 左侧行号**（非黑底终端风）；`L110` 紧跟 fence 时行号对齐源文件 |
+| `backend/app/llm/prompts/response_generator_prompt.md` + `response_generator.py` | 允许并要求技术回答用 Markdown，不再禁止代码围栏；重写时保留路径/行号/摘录结构 |
+| `backend/app/llm/prompts/harness_agent_prompt.md` | `reply_fragment` 内可用 Markdown；BSP 问答：先默认现状再改法、强制路径摘录、截断再搜、次要路径降噪 |
+| `backend/skills/mcp-reply-citation/SKILL.md` | MCP 文末引用 + 正文路径/行号摘录要求 |
+| `backend/app/core/agent_loop.py` | v2 流式：后台跑 turn，轮询 `harness_invocations` 推送 MCP/能力调用进度 |
+| `src/lib/types.ts` | `Message.trace`（viaA2A / expertName / steps） |
+| `src/hooks/useAgent.ts` + `ChatPanel.tsx` | 展示专家徽章与调用轨迹 |
+
+### F3. 验收
+
+- [ ] 闲聊「介绍一下自己」：有 MCP 专家可走 answer_only 短路
+- [ ] 业务问（如 FV 配置）：仍进 Harness，可调 MCP/技能
+- [ ] UI 在 SSE delta 到达时更新气泡；代码块以等宽块展示，非 raw markdown 糊成一团
+- [ ] 真查 MCP 的任务仍可走 Harness（Planner 主动 `start_new_task` 时）
+
+### F4. Phase G — MCP 不可达 / 空工具时的延迟止血（实测）
+
+**实测（2026-08-12）**：A2A 问 QCM4490「FV 配置」总耗时 **~101s**；`mcp_called=False`；QCM4490 MCP `http://10.2.137.73:8765/sse` **连接被拒绝**，H618 MCP 超时。几乎全部时间耗在 6～7 次串行 LLM，工具执行本身 <0.1s。
+
+| 改动 | 目的 |
+|------|------|
+| `capability_manifest.py` | `discovered_tools` 为空时短超时尝试 `list_mcp_tools`；失败则记入 unavailable，避免假装有 MCP |
+| `harness_v2_engine.py` | conversation 且清单无可用 MCP 工具时，`max_actions` 上限改为 3 |
+| `harness_agent_prompt.md` | 明确：MCP 不可达且工作区空时尽快 `finish`，禁止空转 search/glob |
+
+验收目标：MCP 宕机时同类问题墙钟从 ~100s 降到约 **30–45s**，并明确告知「MCP 不可达」而非空等。
+
+### F5. Phase G2 — MCP 挂了必须显式提示（硬早退 + UI）
+
+**问题**：即使用户能等完，气泡上只有「未调用 MCP」，不够醒目；且仍可能空转多轮 LLM。
+
+| 改动 | 目的 |
+|------|------|
+| `harness_v2_engine.py` | 专家**已绑定 MCP** 且探测全部不可达（含 stale `discovered_tools`）时：**跳过 Harness LLM**，直接回复「MCP 不可达」+ 服务器名/原因；写 `mcp_unavailable` 事件 |
+| `agent_loop.py` | `capability_trace` 携带 `mcp_unavailable` / 原因；合成轨迹步 `MCP 不可达` |
+| `types.ts` / `ipc-handlers.ts` / `useAgent.ts` / `ChatPanel.tsx` | 徽章优先显示红色 **「MCP 不可达」**（覆盖「未调用 MCP」） |
+
+验收：MCP 宕机（含网关可达但工具后端挂掉）时墙钟目标 **≤20s**；正文与徽章均出现「MCP 不可达」。
+
+**修正（Phase I 联调）**：单次工具查询超时（如 gRPC `Timeout expired` / `InactiveRpcError CANCELLED`）**不算** MCP 不可达，应把错误回灌模型重试；仅连接拒绝 / unreachable / `MCP_UNAVAILABLE` 等连通性失败才硬早退。
+
+**修正（PDO 空答）**：`HarnessCapabilityInvoker` MCP 成功时写 `{"success":true,"result":...}`，但 `_bounded_capability_result` 只把 `data` 回灌模型 → 模型看见 `data:null` 误判「搜空」。回灌须兼容 `data` / `result`。
+
+### F6. Phase H — 真流式（中途 SSE，非假回放）
+
+**问题**：`_handle_turn_stream_v2` 在 `handle_turn` 整轮结束后才吐 `stream_delta`/`capability_trace`；A2A 路由在 async 里同步迭代，event loop 被堵。用户感知仍是「卡住很久突然全文」。此前用第二 SQLite 连接轮询会 wedge（CloseWait），不可回退。
+
+| 改动 | 目的 |
+|------|------|
+| `observability/event_log.py` | 可选 `live_sink`：`record` 时同步推内存事件（不依赖第二 DB 读） |
+| `agent_loop.py` `_handle_turn_stream_v2` | **独立 Session 线程**跑 `handle_turn`；主生成器只从内存队列 yield `status` / `capability_progress`；结束后再补 trace + reply delta + complete |
+| `a2a/router.py` | 生产者线程 + `asyncio` 队列拉取，**不阻塞** event loop；可发 heartbeat |
+
+验收：
+- [ ] 提问后 **≤2s** 能收到非 `working` 的进度（如「正在规划」/工具调用）
+- [ ] MCP 调用开始/失败在全文出现前即可在轨迹区看到
+- [ ] 健康检查/其他 API 在长 turn 期间仍可响应（event loop 未堵死）
+- [ ] 不出现此前 SQLite wedge / 大量 CloseWait
+- [ ] 轨迹不去重刷屏：同文案 status /「MCP 不可达 · tool」只出现一次（live + summary 合并）
+- [ ] 专家回合结束后桌面气泡展示完整 reply，禁止用空 content 覆盖成 `Done.`（保留已流式内容）
+
+### F7. Phase H2 — 桌面「Done.」吞答 + 轨迹双计
+
+**问题（实测）**：Harness 已写出完整 FV 指南并入库，桌面却显示 `Done.`；轨迹里同一 `search_aosp` 先「调用工具」再「调用MCP」，且多轮重复搜索。
+
+| 改动 | 目的 |
+|------|------|
+| `useAgent.ts` | 终态合并：`response.content` 为空时保留气泡已有流式正文，绝不回落成 `Done.` |
+| `ipc-handlers.ts` `_planViaA2A` | 从 `complete.reply` / 嵌套 data 兜底取全文；finish 前若仍空则打日志 |
+| `agent_loop` live map | `search_aosp` 等按 MCP 标注；汇总步与 live 同 id |
+| `harness_agent_prompt.md` | MCP 检索命中后尽快 finish，避免无意义连搜 |
+
+### F8. Phase H3 — SSE 丢正文时回拉会话消息
+
+**问题（实测）**：Harness 已 `assistant_message_created` 并入库完整 FV 指南，轨迹显示「已调用 MCP / 正在生成回复」，桌面气泡仍为「未收到专家正文」。根因是 Electron 侧 `fullText` 为空（长回合末帧未进 `fullText`），不是专家没答。
+
+| 改动 | 目的 |
+|------|------|
+| `_planViaA2A` | 跟踪 SSE `sessionId`；`finish` 时若正文为空 → `GET /api/chat/sessions/{id}/messages` 取最新 assistant |
+| `useAgent.ts` | 终态合并后再清 `streamMessageIdRef`；按 `messageId` 仍可接受迟到的 replace |
+| 日志 | `finish() with empty reply` 时打印已见 event kinds / sessionId |
+
+验收：人为丢掉 replace 时，桌面仍能显示与 DB 一致的专家正文。
+
+### F9. Phase I — Harness 原生 tools=（AgentCore 线协议）
+
+**问题（实测对照）**：决策步用 `generate_json` + 强制单 tool + DeepSeek 默认高 thinking，单轮墙钟常 7～40s（同题对照 ~22s）；原生 `tools=` 同场景 ~3～5s，且可并行多个检索。
+
+| 文件 | 改动 |
+|------|------|
+| `backend/app/llm/client.py` | 新增 `complete_with_tools`（非流式 `tools=` / 解析 `tool_calls`） |
+| `backend/app/core/harness_agent.py` | 决策环改 messages + 原生 tools；同轮并行 invoke；合成 `harness_finish`；非 OpenAI 协议 fallback `generate_json`；**tool 名 sanitize**（`general_skill.*` → `^[a-zA-Z0-9_-]+$`） |
+| `backend/app/llm/prompts/harness_agent_prompt.md` | 去掉「只输出 JSON / 每轮一个 tool」；改为 function calling + 可并行检索 |
+
+**不做（本期）**：专家迁 Sidecar；决策 LLM 真流式；改 TurnPlanner / ResponseGenerator / A2A / Electron。
+
+验收：
+- [x] FV 类决策步墙钟量级秒级（非 20s+），span 无 JSON repair
+- [x] 可并行 ≥2 个 `search_aosp`（或等价 MCP tool），仍经 `HarnessCapabilityInvoker`
+- [x] 非 OpenAI Chat Completions 协议不炸（走旧 JSON 路径）
+- [ ] G2 MCP 不可达早退仍有效
+
+---
+
 ## 五、总结
 
 | Phase | 内容 | 文件 | 工作量 |
@@ -498,6 +625,13 @@ App.tsx handleSelectSession(id)
 | C | 前端 expertId 传递 + ExpertCenter 召唤修复 + ChatPanel 专家名展示 | `ExpertCenter.tsx` + `useAgent.ts` + `App.tsx` + `ChatPanel.tsx` + `ipc-handlers.ts` + `sidecar-service.ts` | 中（~80 LOC diff） |
 | D | 对话资源上下文（ConversationContextBar） | 新增 `ConversationContextBar.tsx` + 修改 `ChatPanel.tsx` + `App.tsx` + 接入现有 pickers | 中（~150 LOC） |
 | E | 会话持久化补充 expertContext/expertResources | `useSession.ts` + `App.tsx` | 小（~30 LOC diff） |
+| F | A2A 专家对话延迟优化（流式 UI + answer_only 短路） | harness_v2 / response_generator / invoker / agent_loop / a2a router / ipc-handlers / useAgent | 中 |
+| G | MCP 不可达早退 + 空工具发现 | capability_manifest / harness_v2 / harness_agent_prompt | 小 |
+| G2 | MCP 挂了硬早退 + UI「MCP 不可达」徽章 | harness_v2 / agent_loop / ChatPanel / useAgent / ipc-handlers | 小 |
+| H | 真流式：内存队列 live_sink + A2A 异步让出 | event_log / agent_loop / a2a router | 中 |
+| H2/H3 | 桌面吞答修复 + 空正文回拉 messages | ipc-handlers / useAgent | 小 |
+| I | Harness 原生 tools=（AgentCore 线协议） | `llm/client.py` / `harness_agent.py` / `harness_agent_prompt.md` | 中 |
+| I+ | 轨迹步终态附加耗时（`· 完成 · Nms`） | `agent_loop.py` / `harness_agent.py` / types | 小 |
 
 **核心设计原则**：
 - 本地 LLM 的对话内容不经过服务器，只有显式委托的任务描述发给专家
