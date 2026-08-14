@@ -147,8 +147,146 @@ class GeneralSkill(SQLModel, table=True):
     capability_scope: str = Field(default="general", index=True)
     permissions_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     runtime_config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # skills-01 store / access / runtime
+    access_level: str = Field(default="L1", index=True)
+    version: str = Field(default="0.1.0", index=True)
+    package_digest: Optional[str] = Field(default=None, index=True)
+    author_user_id: Optional[str] = Field(default=None, index=True)
+    source: str = Field(default="local", index=True)
+    is_highlighted: bool = Field(default=False, index=True)
+    category_id: Optional[str] = Field(default=None, index=True)
+    download_count: int = Field(default=0)
+    invoke_count: int = Field(default=0)
+    star_count: int = Field(default=0)
+    secure_content_enabled: bool = Field(default=True)
+    allow_local_download: bool = Field(default=True)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class SkillCategory(SQLModel, table=True):
+    __tablename__ = "skill_categories"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_skill_category_tenant_name"),)
+
+    id: str = Field(default_factory=lambda: new_id("skcat"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    name: str
+    sort_order: int = Field(default=0, index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class GeneralSkillRevision(SQLModel, table=True):
+    __tablename__ = "general_skill_revisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "skill_id", "version", name="uq_general_skill_revision_version"
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: new_id("gsrev"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    skill_id: str = Field(index=True)
+    version: str = Field(index=True)
+    changelog: Optional[str] = None
+    skill_markdown: str
+    skill_files_json: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    package_digest: Optional[str] = Field(default=None, index=True)
+    file_size: int = Field(default=0)
+    created_by: Optional[str] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class UserSkillLibrary(SQLModel, table=True):
+    __tablename__ = "user_skill_library"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "user_id", "skill_id", name="uq_user_skill_library_entry"
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: new_id("uslib"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    skill_id: str = Field(index=True)
+    added_at: datetime = Field(default_factory=utc_now)
+
+
+class SkillAccessGrant(SQLModel, table=True):
+    __tablename__ = "skill_access_grants"
+    __table_args__ = (
+        Index(
+            "ix_skill_access_grant_lookup",
+            "tenant_id",
+            "skill_id",
+            "grantee_user_id",
+            "grant_type",
+            "status",
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: new_id("skgrant"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    skill_id: str = Field(index=True)
+    grantee_user_id: str = Field(index=True)
+    grant_type: str = Field(index=True)  # use | download
+    status: str = Field(default="pending", index=True)  # pending/approved/rejected/revoked
+    reason: Optional[str] = None
+    decision_note: Optional[str] = None
+    decided_by: Optional[str] = None
+    decided_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class SkillAccessWhitelist(SQLModel, table=True):
+    __tablename__ = "skill_access_whitelist"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "skill_id",
+            "principal_type",
+            "principal_id",
+            "grant_type",
+            name="uq_skill_access_whitelist",
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: new_id("skwl"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    skill_id: str = Field(index=True)
+    principal_type: str = Field(default="user", index=True)  # user | department
+    principal_id: str = Field(index=True)
+    grant_type: str = Field(default="both", index=True)  # use | download | both
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class UserSkillStar(SQLModel, table=True):
+    __tablename__ = "user_skill_stars"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "user_id", "skill_id", name="uq_user_skill_star"),
+    )
+
+    id: str = Field(default_factory=lambda: new_id("skstar"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    skill_id: str = Field(index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class AgentSkillToken(SQLModel, table=True):
+    __tablename__ = "agent_skill_tokens"
+
+    id: str = Field(default_factory=lambda: new_id("agtok"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    token_hash: str = Field(index=True)
+    device_label: Optional[str] = None
+    # a2a = IDE / A2A 接入；skill_runtime = 技能商店 Runtime（skills-003）
+    purpose: str = Field(default="skill_runtime", index=True)
+    token_suffix: Optional[str] = None
+    expires_at: datetime = Field(index=True)
+    revoked_at: Optional[datetime] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class KnowledgeBase(SQLModel, table=True):

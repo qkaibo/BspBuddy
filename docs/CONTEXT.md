@@ -24,6 +24,17 @@ AI 桌面工作台。用户通过对话与 AI 交互完成任务，支持模型�
 **技能（Skill）**：
 教 AI 完成特定任务的工具能力。如发邮件、查股价、调用 API。可通过插件安装或自创。
 
+**通用技能 / General Skill**：
+以 `SKILL.md` 为核心的可安装技能包，经 FastAPI `GeneralSkillRunner` 执行（read / execute）。个人目录安装到专家见 `agents-002`；企业商店发现/分级/Agent 安装协议见 `skills-001`～`skills-003`。
+_Avoid_：与 SOP 技能混称；把「加入我的技能」说成已经「绑定专家」。
+
+**技能访问级别（L1 / L2 / L3）**：
+企业技能的调用与下载分离模型。L1 登录可调可下；L2 可调、下载需授权；L3 仅授权可调且禁止 ZIP。见 `skills-002`。
+
+**技能 Runtime / 本地壳**：
+Agent 本地只保留壳 `SKILL.md`，执行前通过 runtime API 拉取最新主指令与资源。见 `skills-003`。
+_Avoid_：默认认为升版必须重下 ZIP。
+
 **SOP 技能（SOP Skill）**：
 图结构（节点+边）的状态机驱动技能。每个节点声明期望的用户信息、允许的操作和关联的能力引用。通过 **SOP 创作台**（蒸馏编辑器）从自然语言或文档生成。
 生命周期：draft → published → archived。
@@ -100,6 +111,16 @@ AI 从非结构化文档或自然语言中自动生成 SOP 技能 Card（JSON）
 
 **技能分支（Skill Branch）**：
 专家对广场/源 SOP 的独立副本关系。状态语义参考 StaffDeck：`synced` / `diverged`。当前 Scope 工作台以 bindings ID 列表简化；完整分支协议后续对接。
+
+### A2A 与外部接入
+
+**A2A（Agent-to-Agent）**：
+本地 Agent / 外部 IDE 按 Google A2A 协议委托服务器端专家执行的通道。产品端点：`/a2a/agents`、`/a2a/agents/{id}/tasks`（SSE）。协议与聊天内委托见 `agents-004`。
+_Avoid_：把 A2A 说成「再开一套聊天 API」而忽略专家 Card / 任务委托语义。
+
+**A2A 接入 Token**：
+绑定**后端用户**的个人访问令牌，供 IDE 等外部客户端以 `Authorization: Bearer` 调用 `/a2a/*`。在「系统设置」左侧分类「A2A 接入」签发/吊销（设置页左右两栏）；明文只显示一次。见 `agents-005`。
+_Avoid_：当成租户全局一把钥匙；把技能商店「签发 Agent Token」（`skills-003`）当成 A2A 主入口；把桌面 Phase1 本地 `local.*` 会话 token 直接当 A2A Bearer。
 
 ### 执行引擎
 

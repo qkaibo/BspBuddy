@@ -16,7 +16,8 @@ from app.db.models import (
 
 def _base_url() -> str:
     settings = get_settings()
-    return (getattr(settings, "base_url", None) or "http://localhost:52020").rstrip("/")
+    # Prefer explicit BASE_URL; desktop bridge sets http://127.0.0.1:52020
+    return (getattr(settings, "base_url", None) or "http://127.0.0.1:52020").rstrip("/")
 
 
 def build_agent_cards(

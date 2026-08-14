@@ -112,6 +112,8 @@ def _migrate_sqlite_skill_schema() -> None:
         _migrate_capability_scope_schema(conn, inspector, tables)
         _migrate_harness_v2_schema(conn, inspector, tables)
         _migrate_expert_model_catalog_schema(conn, inspector, tables)
+        _migrate_general_skill_store_schema(conn, inspector, tables)
+        _migrate_agent_skill_token_purpose_schema(conn, inspector, tables)
 
         if "users" in tables:
             user_columns = {column["name"] for column in inspector.get_columns("users")}
@@ -1825,6 +1827,103 @@ def _migrate_expert_model_catalog_schema(conn, inspector, tables: set[str]) -> N
     mc_col = col_info.get("model_config_id")
     if mc_col and mc_col.get("nullable") is False:
         _recreate_agent_model_bindings_nullable(conn, inspector)
+
+
+def _migrate_general_skill_store_schema(conn, inspector, tables: set[str]) -> None:
+    """skills-01: store/access/runtime columns on general_skills (+ create_all for new tables)."""
+    if "general_skills" not in tables:
+        return
+    columns = {column["name"] for column in inspector.get_columns("general_skills")}
+    column_sql = {
+        "access_level": (
+            "ALTER TABLE general_skills ADD COLUMN access_level "
+            "VARCHAR NOT NULL DEFAULT 'L1'"
+        ),
+        "version": (
+            "ALTER TABLE general_skills ADD COLUMN version "
+            "VARCHAR NOT NULL DEFAULT '0.1.0'"
+        ),
+        "package_digest": "ALTER TABLE general_skills ADD COLUMN package_digest VARCHAR",
+        "author_user_id": "ALTER TABLE general_skills ADD COLUMN author_user_id VARCHAR",
+        "source": (
+            "ALTER TABLE general_skills ADD COLUMN source "
+            "VARCHAR NOT NULL DEFAULT 'local'"
+        ),
+        "is_highlighted": (
+            "ALTER TABLE general_skills ADD COLUMN is_highlighted "
+            "BOOLEAN NOT NULL DEFAULT 0"
+        ),
+        "category_id": "ALTER TABLE general_skills ADD COLUMN category_id VARCHAR",
+        "download_count": (
+            "ALTER TABLE general_skills ADD COLUMN download_count "
+            "INTEGER NOT NULL DEFAULT 0"
+        ),
+        "invoke_count": (
+            "ALTER TABLE general_skills ADD COLUMN invoke_count "
+            "INTEGER NOT NULL DEFAULT 0"
+        ),
+        "star_count": (
+            "ALTER TABLE general_skills ADD COLUMN star_count "
+            "INTEGER NOT NULL DEFAULT 0"
+        ),
+        "secure_content_enabled": (
+            "ALTER TABLE general_skills ADD COLUMN secure_content_enabled "
+            "BOOLEAN NOT NULL DEFAULT 1"
+        ),
+        "allow_local_download": (
+            "ALTER TABLE general_skills ADD COLUMN allow_local_download "
+            "BOOLEAN NOT NULL DEFAULT 1"
+        ),
+    }
+    for column_name, ddl in column_sql.items():
+        if column_name not in columns:
+            conn.execute(text(ddl))
+    conn.execute(
+        text(
+            "UPDATE general_skills SET access_level = 'L1' "
+            "WHERE access_level IS NULL OR access_level = ''"
+        )
+    )
+    conn.execute(
+        text(
+            "UPDATE general_skills SET version = '0.1.0' "
+            "WHERE version IS NULL OR version = ''"
+        )
+    )
+    conn.execute(
+        text(
+            "UPDATE general_skills SET source = 'local' "
+            "WHERE source IS NULL OR source = ''"
+        )
+    )
+    conn.execute(
+        text(
+            "UPDATE general_skills SET allow_local_download = 0 "
+            "WHERE access_level = 'L3'"
+        )
+    )
+
+
+def _migrate_agent_skill_token_purpose_schema(conn, inspector, tables: set[str]) -> None:
+    """agents-005: purpose + token_suffix on agent_skill_tokens."""
+    if "agent_skill_tokens" not in tables:
+        return
+    columns = {column["name"] for column in inspector.get_columns("agent_skill_tokens")}
+    if "purpose" not in columns:
+        conn.execute(
+            text(
+                "ALTER TABLE agent_skill_tokens ADD COLUMN purpose "
+                "VARCHAR NOT NULL DEFAULT 'skill_runtime'"
+            )
+        )
+    if "token_suffix" not in columns:
+        conn.execute(text("ALTER TABLE agent_skill_tokens ADD COLUMN token_suffix VARCHAR"))
+    conn.execute(
+        text(
+            "UPDATE agent_skill_tokens SET purpose = 'skill_runtime' "
+            "WHERE purpose IS NULL OR purpose = ''"
+        )
+    )
 
 
 def _recreate_agent_model_bindings_nullable(conn, inspector) -> None:

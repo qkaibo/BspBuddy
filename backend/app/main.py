@@ -7,6 +7,7 @@ from sqlmodel import Session
 from app.a2a.router import router as a2a_router
 from app.api import (
     agents,
+    agent_rules,
     auth,
     channels,
     chat,
@@ -14,6 +15,9 @@ from app.api import (
     expert_model_catalog,
     feedback,
     general_skills,
+    general_skills_access,
+    general_skills_store,
+    skills_extras,
     knowledge,
     knowledge_bases,
     memories,
@@ -80,7 +84,12 @@ app.include_router(ui_config.chat_router)
 app.include_router(auth.router)
 app.include_router(agents.scope_router)
 app.include_router(agents.enterprise_router)
+app.include_router(general_skills_store.router)
+app.include_router(general_skills_store.categories_router)
 app.include_router(general_skills.router)
+app.include_router(general_skills_access.router)
+app.include_router(skills_extras.router)
+app.include_router(agent_rules.router)
 app.include_router(knowledge_bases.router)
 app.include_router(knowledge.router)
 app.include_router(skills.router)

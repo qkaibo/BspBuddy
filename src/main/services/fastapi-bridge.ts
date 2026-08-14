@@ -63,7 +63,12 @@ export async function startFastApi(): Promise<void> {
 
   pythonProcess = spawn('python', ['-m', 'uvicorn', 'single_port_app:app', '--host', FASTAPI_HOST, '--port', String(FASTAPI_PORT)], {
     cwd: backendDir,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: {
+      ...process.env,
+      PYTHONUNBUFFERED: '1',
+      // Align Agent Card urls with the desktop bridge listen address (agents-005 Phase C)
+      BASE_URL: FASTAPI_BASE,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 

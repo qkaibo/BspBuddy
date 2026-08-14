@@ -1,7 +1,7 @@
 # BspBuddy 文档中心
 
 > **目的：** 产品需求与技术规格的权威来源。参考 StaffDeck 文档体系建模。
-> **最后更新：** 2026-08-09（新增 settings-002 专家模型目录 PRD/Tech Spec/Plan）
+> **最后更新：** 2026-08-14（agents-005 Phase A–C：A2A 接入 Token 可演示）
 
 ---
 
@@ -87,6 +87,8 @@ related: [agents-001-api]
 | 22 | [multi-platform-architecture](plans/architecture-01-multi-platform.md) | 多端统一架构（桌面/Web/移动）：后端 LLM 代理 + 能力门禁 | P0 | 🟡 |
 | 23 | [local-agent-runtime](plans/23-local-agent-runtime.md) | 本地 Agent 运行时（Python Sidecar + ReAct + Tool Use）| P0 | 🟡 |
 | 24 | [a2a-delegation](plans/agents-03-a2a-delegation.md) | A2A 专家委托协议：本地 Sidecar → 服务器端专家 Agent 委托 | P0 | 🟡 |
+| 24-1 | [a2a-access-token](plans/agents-03-1-a2a-access-token.md) | A2A 接入 Token：设置内签发 / 列表 / 吊销，供 IDE 调 `/a2a/*` | P0 | ✅ |
+| 25 | [enterprise-skill-store](plans/skills-01-enterprise-skill-store.md) | 企业技能商店 + L1–L3 + Runtime + 轻量排行榜（Phase A–E） | P1 | ✅ |
 
 > 进度看板即上表。`specs/` 已废弃，勿再引用。  
 > **权限分轨：** [auth-01](plans/auth-01-access-control.md) = 身份+RBAC+资源 ACL 的身份来源；[10-permission](plans/10-permission.md) = Agent Permission Modes（工具沙箱）。勿混名。
@@ -105,6 +107,11 @@ related: [agents-001-api]
 | settings-001 | [AI 模型配置（BYOK / 租户共享）](prd/settings-001-model-config.md) | — | 🟡 规划中 |
 | settings-002 | [专家模型目录](prd/settings-002-expert-model-catalog.md) | settings-002 | ✅ 已完成（含 is_default 默认模型） |
 | agents-004 | [A2A 专家委托协议](prd/agents-004-a2a-delegation.md) | agents-03 | 🟡 规划中 |
+| agents-005 | [A2A 接入 Token（IDE / 外部客户端）](prd/agents-005-a2a-access-token.md) | [agents-005-api](tech-spec/agents-005-a2a-access-token.md) | 🟢 可演示（设置页 + bba2a_ + 探测） |
+| skills-001 | [企业技能商店 — 发现、详情与导入发布](prd/skills-001-discovery-and-detail.md) | skills-001-api | 🟢 实现完成（L2 自测过；桌面 L3 待审查） |
+| skills-002 | [技能访问分级与授权（L1/L2/L3）](prd/skills-002-access-levels.md) | skills-002-api | 🟢 门禁 + 申请/审批 UI（L2 过；L3 待审查） |
+| skills-003 | [Agent 一键安装与 Runtime 协议](prd/skills-003-agent-install-runtime.md) | skills-003-runtime | 🟢 runtime/Token（Cursor 写壳 L3 待审查） |
+| marketing-001 | [官网落地页](prd/marketing-001-landing.md) | — | 🟡 静态站初版（`website/`） |
 
 ---
 
@@ -116,8 +123,12 @@ related: [agents-001-api]
 | agents-002-sop | [SOP 蒸馏编辑器与技能库](tech-spec/agents-002-sop.md) | agents-003, agents-001, agents-002 | 🟡 本地库+actor 过滤可演示 / SSE 与云端 grants 待接 |
 | agents-003-feedback | 反馈系统 | — | 🟡 待编写 |
 | agents-004-agent-loop | [专家执行环路](tech-spec/agents-004-agent-loop.md) | agents-002, runtime-01 | ✅ |
+| agents-005-api | [A2A 接入 Token API 与鉴权前缀](tech-spec/agents-005-a2a-access-token.md) | agents-005 | 🟢 与代码对齐 |
 | auth-001-api | [会话身份与 RBAC](tech-spec/auth-001-session-and-rbac.md) | auth-001 | 🟡 桌面本地会话已实现 / JWT 云端对齐待接 |
 | settings-002 | [专家模型目录](tech-spec/settings-002-expert-model-catalog.md) | settings-002 | ✅ 已完成 |
+| skills-001-api | [企业技能商店](tech-spec/skills-001-discovery-and-detail.md) | skills-001 | 🟢 已实现 |
+| skills-002-api | [技能访问分级与授权](tech-spec/skills-002-access-levels.md) | skills-002 | 🟢 已实现 |
+| skills-003-runtime | [Agent 安装与 Runtime](tech-spec/skills-003-agent-install-runtime.md) | skills-003 | 🟢 已实现（Loop 热更新延期） |
 
 ---
 
@@ -128,3 +139,4 @@ related: [agents-001-api]
 | ref-001 | [UI 设计原则](reference/ref-001-ui-design-principles.md) | ✅ |
 | ref-004 | 枚举与状态码字典 | 🟡 待编写 |
 | ref-005 | 页面关系导航图 | 🟡 待编写 |
+| skills-hub-capability-inventory | [Skills Hub 能力对照清单](reference/skills-hub-capability-inventory.md) | ✅ |

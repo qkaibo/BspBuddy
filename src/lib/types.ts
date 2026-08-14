@@ -119,6 +119,27 @@ export interface FunctionDefinition {
 }
 
 // ---------- Chat ----------
+export interface MessageTraceStep {
+  id: string
+  label: string
+  kind: 'status' | 'mcp' | 'tool' | 'skill' | 'capability'
+  status?: string
+  provider?: string
+  tool_name?: string
+  /** Wall-clock tool/MCP duration in ms (debug) */
+  durationMs?: number
+}
+
+export interface MessageTrace {
+  viaA2A?: boolean
+  expertName?: string
+  mcpCalled?: boolean | null
+  /** Expert has MCP bindings but none were reachable this turn */
+  mcpUnavailable?: boolean
+  mcpUnavailableDetail?: string
+  steps: MessageTraceStep[]
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -127,6 +148,7 @@ export interface Message {
   artifacts?: Artifact[]
   codeEdits?: CodeEdit[]
   newFiles?: { path: string; content: string }[]
+  trace?: MessageTrace
   timestamp: number
 }
 
@@ -143,6 +165,7 @@ export interface LLMConfig {
 export const IPC_CHANNELS = {
   EXECUTE_TASK: 'agent:execute-task',
   TASK_PROGRESS: 'agent:task-progress',
+  A2A_CHAT_STREAM: 'agent:a2a-chat-stream',
   AGENT_STOP: 'agent:stop',
   AGENT_CANCEL: 'agent:cancel',
   FILE_DIALOG: 'shell:file-dialog',
@@ -357,6 +380,31 @@ export const IPC_CHANNELS = {
   KNOWLEDGE_DELETE: 'knowledge:delete',
   // General Skills & Resource Import
   GENERAL_SKILL_LIST: 'general-skill:list',
+  GENERAL_SKILL_STORE_LIST: 'general-skill:store-list',
+  GENERAL_SKILL_LEADERBOARD: 'general-skill:leaderboard',
+  GENERAL_SKILL_CATEGORIES: 'general-skill:categories',
+  GENERAL_SKILL_LIBRARY_LIST: 'general-skill:library-list',
+  GENERAL_SKILL_LIBRARY_ADD: 'general-skill:library-add',
+  GENERAL_SKILL_LIBRARY_REMOVE: 'general-skill:library-remove',
+  GENERAL_SKILL_INSTALL_PROMPT: 'general-skill:install-prompt',
+  GENERAL_SKILL_REVISIONS: 'general-skill:revisions',
+  GENERAL_SKILL_ACCESS_REQUEST: 'general-skill:access-request',
+  GENERAL_SKILL_GET: 'general-skill:get',
+  GENERAL_SKILL_IMPORT_PACKAGE: 'general-skill:import-package',
+  GENERAL_SKILL_IMPORT_URL: 'general-skill:import-url',
+  GENERAL_SKILL_ACCESS_INBOX: 'general-skill:access-inbox',
+  GENERAL_SKILL_ACCESS_DECIDE: 'general-skill:access-decide',
+  GENERAL_SKILL_STAR: 'general-skill:star',
+  GENERAL_SKILL_CREATE_REVISION: 'general-skill:create-revision',
+  AGENT_SKILL_TOKEN_CREATE: 'agent-skill-token:create',
+  AGENT_SKILL_TOKEN_LIST: 'agent-skill-token:list',
+  AGENT_SKILL_TOKEN_REVOKE: 'agent-skill-token:revoke',
+  /** agents-005: 永久删除已吊销/已过期 Token */
+  AGENT_SKILL_TOKEN_DELETE: 'agent-skill-token:delete',
+  /** agents-005: FastAPI /api/auth/me for A2A 接入页后端身份 */
+  A2A_ACCESS_BACKEND_ME: 'a2a-access:backend-me',
+  /** agents-005: GET /a2a/agents with optional Bearer (plaintext or session) */
+  A2A_ACCESS_PROBE: 'a2a-access:probe',
   RESOURCE_IMPORT: 'resource:import',
   RESOURCE_UNBIND: 'resource:unbind',
   // Feedback

@@ -34,20 +34,20 @@ import type { Expert, ExpertTeam } from '../lib/expert-types'
 
 const ipc = createIpcClient()
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'feedback'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'expert-model-catalog' | 'feedback'
 
 export default function App() {
   const { messages, activePlan, isProcessing, mode, setMode, modelId, setModelId, sendMessage, stopAgent, setMessages } = useAgent()
   const { saveSession, loadSession, listSessions } = useSession()
   const [collapsed, setCollapsed] = useState(false)
-  const [sessions, setSessions] = useState<Array<{ id: string; title: string; date: string; active: boolean; workspace?: string }>>([])
+  const [sessions, setSessions] = useState<Array<{ id: string; title: string; date: string; active: boolean; workspace?: string; updatedAt?: number }>>([])
   const [workspacePath, setWorkspacePath] = useState<string>()
   const [panelVisible, setPanelVisible] = useState(false)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [fileChanges, setFileChanges] = useState<Array<{ filePath: string; description: string; addedLines?: number; removedLines?: number }>>([])
   const [currentSessionId, setCurrentSessionId] = useState<string>()
   const [activeView, setActiveView] = useState<ViewType>('chat')
-  const [pluginsInitialTab, setPluginsInitialTab] = useState<'installed' | 'market' | 'skills' | 'general-skills' | 'mcp' | 'knowledge'>('installed')
+  const [pluginsInitialTab, setPluginsInitialTab] = useState<'installed' | 'market' | 'skills' | 'general-skills' | 'skill-store' | 'mcp' | 'knowledge'>('installed')
   const [expertContext, setExpertContext] = useState<{ expert?: Expert; sessionId?: string }>({})
   const [activeResources, setActiveResources] = useState<ActiveResource[]>([])
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: string }>({ id: 'user-1', name: 'User', role: 'admin' })
@@ -70,7 +70,7 @@ export default function App() {
 
   // Load sessions on startup
   useEffect(() => {
-    listSessions().then((loaded) => {
+    listSessions().then(async (loaded) => {
       if (loaded.length === 0) {
         const id = uuid()
         const defaults = [
@@ -79,6 +79,21 @@ export default function App() {
         setSessions(defaults)
         setCurrentSessionId(id)
       } else {
+        // Load last session data first, so expertContext / activeResources
+        // are in state before setting currentSessionId (avoids auto-save
+        // race that would overwrite the session file with empty data).
+        const lastId = loaded[0]?.id
+        if (lastId) {
+          try {
+            const session = await loadSession(lastId)
+            if (session?.expertContext) setExpertContext(session.expertContext as any)
+            if (session?.activeResources) setActiveResources(session.activeResources as any)
+            setMessages(session?.messages || [])
+            if (session?.workspace) setWorkspacePath(session.workspace)
+            if (session?.mode) setMode(session.mode as any)
+            if (session?.modelId) setModelId(session.modelId)
+          } catch { /* session load optional on startup */ }
+        }
         setSessions(loaded.map((s) => ({ ...s, active: false })).map((s, i) => i === 0 ? { ...s, active: true } : s))
         setCurrentSessionId(loaded[0]?.id)
       }
@@ -86,19 +101,35 @@ export default function App() {
     void syncAuthUser()
   }, [syncAuthUser])
 
-  // Auto-save after messages change
+  // Auto-save after messages change; bump current task to top (最近使用)
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
       const session = sessions.find((s) => s.id === currentSessionId)
       if (session) {
+        const now = Date.now()
         saveSession(currentSessionId, session.title, messages, activePlan, workspacePath, mode, modelId, expertContext, activeResources)
+        setSessions((prev) => {
+          const idx = prev.findIndex((s) => s.id === currentSessionId)
+          if (idx < 0) return prev
+          const current = { ...prev[idx], updatedAt: now, active: true }
+          if (idx === 0) {
+            return [current, ...prev.slice(1).map((s) => ({ ...s, active: false }))]
+          }
+          const rest = prev.filter((s) => s.id !== currentSessionId).map((s) => ({ ...s, active: false }))
+          return [current, ...rest]
+        })
       }
     }
   }, [messages, activePlan, currentSessionId, expertContext, activeResources])
 
   const handleSend = async (t: string) => {
     if (messages.length === 0) {
-      setSessions((prev) => prev.map((s) => s.active ? { ...s, title: t.slice(0, 40) } : s))
+      setSessions((prev) => {
+        const current = prev.find((s) => s.active)
+        if (!current) return prev
+        const rest = prev.filter((s) => s.id !== current.id)
+        return [{ ...current, title: t.slice(0, 40), updatedAt: Date.now() }, ...rest]
+      })
     }
     const expertInfo = expertContext?.expert
       ? { name: expertContext.expert.name, title: expertContext.expert.title, methodology: expertContext.expert.methodology, toolChain: expertContext.expert.toolChain, persona: expertContext.expert.persona }
@@ -122,7 +153,8 @@ export default function App() {
 
   const handleNewSession = () => {
     const id = uuid()
-    setSessions((p) => [{ id, title: 'New Task', date: 'Now', active: true, workspace: workspacePath }, ...p.map((s) => ({ ...s, active: false }))])
+    const now = Date.now()
+    setSessions((p) => [{ id, title: 'New Task', date: 'Now', active: true, workspace: workspacePath, updatedAt: now }, ...p.map((s) => ({ ...s, active: false }))])
     setCurrentSessionId(id)
     setMessages([])
     setArtifacts([])
@@ -134,9 +166,8 @@ export default function App() {
   }
 
   const handleSelectSession = async (id: string) => {
-    setSessions((p) => p.map((s) => ({ ...s, active: s.id === id })))
-    setCurrentSessionId(id)
-
+    // Load data first, before setting currentSessionId,
+    // so the auto-save effect won't fire with stale (empty) expertContext.
     const session = await loadSession(id)
     if (session) {
       setMessages(session.messages || [])
@@ -146,7 +177,29 @@ export default function App() {
       if (session.expertContext) setExpertContext(session.expertContext as any)
       if (session.activeResources) setActiveResources(session.activeResources as any)
     }
+    const now = Date.now()
+    setSessions((p) => {
+      const current = p.find((s) => s.id === id)
+      if (!current) return p.map((s) => ({ ...s, active: s.id === id }))
+      const rest = p.filter((s) => s.id !== id)
+      return [{ ...current, active: true, updatedAt: now }, ...rest.map((s) => ({ ...s, active: false }))]
+    })
+    setCurrentSessionId(id)
     setActiveView('chat')
+    // Touch disk so next cold start also sorts by last used
+    if (session) {
+      void saveSession(
+        id,
+        session.title || 'New Task',
+        session.messages || [],
+        session.plan || null,
+        session.workspace,
+        session.mode,
+        session.modelId,
+        session.expertContext,
+        session.activeResources,
+      )
+    }
   }
 
   const hasMsg = messages.length > 0
@@ -155,7 +208,7 @@ export default function App() {
     // Create a new session for this expert
     const id = sessionId || uuid()
     const title = expert.title || expert.name
-    setSessions((p) => [{ id, title, date: 'Now', active: true, workspace: workspacePath }, ...p.map((s) => ({ ...s, active: false }))])
+    setSessions((p) => [{ id, title, date: 'Now', active: true, workspace: workspacePath, updatedAt: Date.now() }, ...p.map((s) => ({ ...s, active: false }))])
     setCurrentSessionId(id)
     setArtifacts([])
     setFileChanges([])

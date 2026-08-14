@@ -2,7 +2,7 @@
 id: agents-004
 title: A2A 专家委托协议
 type: prd
-related: [agents-001, agents-002, agents-003, runtime-01]
+related: [agents-001, agents-002, agents-003, agents-005, runtime-01]
 ---
 
 ## 概述
@@ -109,6 +109,51 @@ A2A `tasks/send` 的消息体映射到后端已有的 `ChatTurnRequest`：
 - 后端 A2A 端点 → `agent_loop.handle_turn(ChatTurnRequest(agent_id=expertId, ...))` → SSE 流式返回
 - 本地 Sidecar 逐事件转发给 Electron 主进程 → ChatPanel 实时渲染
 
+**专家对话直连路径（Electron UI 召唤专家后）**：
+- ChatPanel → `EXECUTE_TASK`（含 `expertId` + `streamMessageId`）→ `_planViaA2A`
+- `_planViaA2A` 消费 SSE；`stream_delta` / `status` 经 `A2A_CHAT_STREAM` 推送 renderer，边收边渲染
+- Planner 判定 `answer_only` 时：若专家有 MCP/技能，**仅闲聊**可短路；业务问题仍进 conversation Harness（Planner 上下文不含 MCP 清单）
+- Harness 已产出可用 `reply_fragment` 时，可跳过最终 Response 重写 LLM
+- ChatPanel 助手气泡以 Markdown 渲染（标题、列表、**表格**、代码块）
+- 专家直连时助手气泡显示「A2A · 专家名」标记；过程区展示规划/能力调用/MCP 调用轨迹（含是否命中 MCP）
+- 专家已绑定 MCP 但本轮全部不可达时：气泡徽章显示 **「MCP 不可达」**（红色），正文明确说明不可达的服务器与原因；不空转多轮搜空工作区
+- 技术答复排版：字段对照优先用「列表 + 行内 code」，避免把整表挤成一行；若用 GFM 表格必须多行（表头 / 分隔行 / 数据行分行），渲染器支持 `remark-gfm` 表格样式
+- **代码块样式（聊天气泡）**：浅灰底 + 左侧行号 gutter + 右侧代码（非深色终端风）；正文出现 `L110` / `L110-L119`（可带路径）时，gutter **从该源文件行号起算**，不是从 1 起；路径可收成块上方标题栏。渲染前会把「正文与 \`\`\` 同一行」、列表内缩进 fence、未闭合 fence 规范成合法 Markdown，避免原始 \`\`\` 泄漏到气泡。
+- 代码库/BSP 技术问答（经 MCP 检索）结构约定：
+  1. **先给默认现状**（证据里是否已有目标档位/默认值），再给「若无则怎么加 / 若有仍不生效查什么」
+  2. 正文必须带 **路径 + 行号（或片段行范围）+ 短代码/配置摘录**；禁止只有教科书式编码说明而无命中文件
+  3. 检索片段截断时：换关键词再搜（如具体字段名、注释关键字），或明确写「片段截断、以下据注释/相邻命中」；禁止臆造未出现的完整赋值
+  4. 主路径写清楚后，次要路径（如 ADSP 为主时的 Kernel TCPM/`snk-pdos`）最多一句附注，避免双路径并列抢注意力
+  5. 实际调用过 MCP 时，文末保留「本次调用 MCP：服务器 / 工具」引用块（见 `mcp-reply-citation` 技能）
+
+### 1b. 专家执行轨迹（可见性）
+
+```
+┌─────────────────────────────────────────┐
+│  [助手气泡]                              │
+│  A2A · QCM4490 充电专家  MCP 不可达      │
+│  · 正在规划本轮任务                      │
+│  · MCP 不可达 · QCM4490代码数据库        │
+│  · 调用 capability_search                │
+│  · 调用 MCP · search_code · 完成 · 623ms │
+│  ─────────────────────────────────      │
+│  （Markdown 正文）                       │
+└─────────────────────────────────────────┘
+```
+
+交互：`A2A_CHAT_STREAM` 推送 `status` / `trace` / `delta`；`complete` 携带本轮 `capability_trace` 汇总（含 `mcp_unavailable`）。
+
+**轨迹耗时（调试）**：工具 / MCP / 能力步在终态文案后附加耗时，格式 `· 完成 · 623ms`（失败 / 结果未知同理）；`duration_ms` 优先取 invocation `finished_at - started_at`，live 推送取本步实测。状态类文案（「正在规划」「准备调用」）可不带耗时。
+
+**真流式（Phase H）**：
+- 规划 / 工具调用 / MCP 失败等进度在 **turn 进行中** 即推送，不得等 `handle_turn` 整轮结束再假回放
+- 实现约束：用内存 `live_sink` 队列，禁止第二 SQLite 连接轮询（会 wedge）
+- A2A SSE 不得阻塞 FastAPI event loop（长 turn 时其它 API 仍应可响应）
+- Electron `_planViaA2A` 必须用 UTF-8 `StringDecoder` + 按 `\n\n` 拆 SSE 帧；禁止对每个 TCP chunk 直接 `toString('utf-8')`（中文 reply 会被拆坏 → JSON 解析失败 → 气泡变成「未收到专家正文」）
+- **空正文兜底（Phase H3）**：若 SSE 结束时仍无 `stream_replace` / `complete.reply`，主进程必须用本轮 `sessionId` 回拉 `GET /api/chat/sessions/{id}/messages` 取最新 assistant 正文再填气泡；禁止在后端已入库的情况下展示「未收到专家正文」
+
+**决策环（Phase I）**：专家执行引擎（Harness TaskAgent）默认使用 **OpenAI 原生 function calling（`tools=` / `tool_calls`）**，可同轮并行多个工具；结束经合成工具 `harness_finish`。禁止以自研 JSON action（`generate_json` 吐 `{"action":"tool"|...}`）作为 OpenAI Chat Completions 协议下的默认路径。
+
 ### 2. 专家绑定编辑（已有）
 
 无需改动。已有 `ExpertBindings` 中的 `sopSkills`、`skills`、`mcpServers`、`knowledgeBases`、`connectors`、`modelId` 由 A2A 委托路径中的 `agent_loop.py` 自动消费。
@@ -196,6 +241,8 @@ App.tsx 维护 `activeResources: ActiveResource[]` 状态。发送消息时作�
 
 ## API 依赖
 
+> **外部 IDE / 客户端鉴权：** 调用下列端点须带用户 Bearer Token。凭证的签发、列表与吊销见独立 PRD [`agents-005`](./agents-005-a2a-access-token.md)（设置 → A2A 接入）；不在本 PRD 的聊天委托路径内实现申请 UI。
+
 ### 新增端点
 
 | 端点 | 方法 | 说明 |
@@ -272,6 +319,8 @@ LLM 回复时参考这些上下文资源
 - [ ] 本地 Sidecar 能拉取并注册所有在线专家的 Agent Card
 - [ ] 用户召唤专家后发消息，本地 LLM 能判断是否需要委托并调用 `delegate_to_expert`
 - [ ] 委托过程中聊天界面实时展示专家的执行过程
+- [ ] 专家直连对话：SSE `stream_delta` 到达即更新气泡，不等 `EXECUTE_TASK` 整轮返回
+- [ ] 有 MCP 绑定的专家，闲聊/`answer_only` 不强制进入多轮 Harness
 - [ ] 委托完成后的结果（artifacts）能正确显示在对话中
 - [ ] 本地 LLM 的对话内容不经过服务器中转（仅委托任务描述传给专家，本地上下文留在本地）
 - [ ] ChatPanel 输入框上方显示当前对话的资源 tag 栏（专家/技能/SOP/知识库），可动态添加/移除

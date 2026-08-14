@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow, dialog, app } from 'electron'
+import { StringDecoder } from 'string_decoder'
 import { IPC_CHANNELS } from '../../lib/types'
 import type { AgentMode, PermissionAction, PermissionMode } from '../../lib/types'
 import type { Expert, ExpertBindings } from '../../lib/expert-types'
@@ -75,9 +76,43 @@ export function registerIpcHandlers(): void {
     expertId?: string
     expertInfo?: { name: string; title: string; methodology: string; toolChain: string[]; persona: string }
     activeResources?: { id: string; type: string; name: string }[]
+    streamMessageId?: string
+    expertName?: string
   }) => {
     try {
-      // --- Resolve LLM service ---
+      // --- Expert chat MUST go through A2A AgentLoop (server-side MCP/skills) ---
+      // Never route expert turns to Sidecar / local AIService / chat proxy.
+      if (_context?.expertId) {
+        try {
+          const modeHint = mode === 'ask'
+            ? '（注意：当前是Ask模式，只需回答/建议，不要生成执行计划）'
+            : mode === 'plan'
+            ? '（注意：当前是Plan模式，请生成详细的步骤计划，标注"waiting_confirmation"状态）'
+            : '（Craft模式，直接生成可执行计划）'
+          const aiResponse = await _planViaA2A(
+            _context.expertId,
+            userInput,
+            modeHint,
+            _context.streamMessageId,
+            _context.expertName || _context.expertInfo?.title || _context.expertInfo?.name,
+          )
+          const result = _processPlanResponse(aiResponse, mode, userInput)
+          if (result.content) {
+            _extractMemoriesAfterTurn(userInput, result.content)
+          }
+          return { ...result, trace: (aiResponse as { trace?: unknown }).trace }
+        } catch (err) {
+          console.error('[EXECUTE_TASK] A2A expert chat failed:', err)
+          return {
+            content: null,
+            error: `专家服务暂时不可用: ${err instanceof Error ? err.message : String(err)}`,
+            plan: null,
+            artifacts: [],
+          }
+        }
+      }
+
+      // --- Non-expert: Resolve LLM service ---
       let result: { content: string | null; error: string | null; plan: unknown | null; artifacts: unknown[] }
       if (modelId) {
         // Check if this is a local-only model (starts with "local_")
@@ -86,7 +121,7 @@ export function registerIpcHandlers(): void {
           if (localCfg) {
             // Use Python sidecar for local models
             try {
-              result = await _planViaSidecar(userInput, mode, localCfg, _context?.expertId, _context?.activeResources)
+              result = await _planViaSidecar(userInput, mode, localCfg, undefined, _context?.activeResources)
               if (result.content) {
                 _extractMemoriesAfterTurn(userInput, result.content)
               }
@@ -116,7 +151,7 @@ export function registerIpcHandlers(): void {
         } else {
           // Cloud model → backend proxy
           try {
-            const aiResponse = await _planViaBackend(userInput, mode, modelId, _context?.expertId, _context?.expertInfo, _context?.activeResources)
+            const aiResponse = await _planViaBackend(userInput, mode, modelId, undefined, _context?.expertInfo, _context?.activeResources)
             if (aiResponse) {
               result = _processPlanResponse(aiResponse, mode, userInput)
               if (result.content) {
@@ -144,6 +179,348 @@ export function registerIpcHandlers(): void {
       }
     }
   })
+
+  // ---- Helper: call A2A AgentLoop (expert chat with full capability manifest) ----
+  async function _planViaA2A(
+    agentId: string,
+    userInput: string,
+    modeHint: string,
+    streamMessageId?: string,
+    expertName?: string,
+  ) {
+    let token = getToken()
+    if (!token) {
+      // Auto-login if token not yet acquired
+      try {
+        const { default: axios } = await import('axios')
+        const baseUrl = getFastApiBaseUrl()
+        const loginRes = await axios.post(`${baseUrl}/api/auth/login`, {
+          tenant_id: 'tenant_demo',
+          username: 'admin',
+          password: 'admin',
+        })
+        if (loginRes.data?.token) {
+          token = loginRes.data.token
+        }
+      } catch (err) {
+        console.error('[_planViaA2A] Auto-login failed:', (err as Error).message)
+      }
+    }
+    if (!token) throw new Error('AUTH_TOKEN_MISSING')
+
+    const baseUrl = getFastApiBaseUrl()
+
+    const body = JSON.stringify({
+      message: { role: 'user', parts: [{ text: userInput + ' ' + modeHint }] },
+      metadata: {},
+    })
+
+    const url = `${baseUrl}/a2a/agents/${agentId}/tasks?tenant_id=tenant_demo`
+
+    type TraceStep = {
+      id: string
+      label: string
+      kind: 'status' | 'mcp' | 'tool' | 'skill' | 'capability'
+      status?: string
+      provider?: string
+      tool_name?: string
+    }
+    const traceSteps: TraceStep[] = []
+    let mcpCalled: boolean | null = null
+    let mcpUnavailable = false
+    let mcpUnavailableDetail: string | undefined
+
+    const emitStream = (payload: {
+      kind: 'status' | 'delta' | 'replace' | 'error' | 'trace' | 'trace_summary'
+      content?: string
+      phase?: string
+      step?: TraceStep
+      steps?: TraceStep[]
+      mcpCalled?: boolean
+      mcpUnavailable?: boolean
+      mcpUnavailableDetail?: string
+    }) => {
+      if (!streamMessageId) return
+      const win = BrowserWindow.getAllWindows()[0]
+      if (!win || win.isDestroyed()) return
+      win.webContents.send(IPC_CHANNELS.A2A_CHAT_STREAM, {
+        messageId: streamMessageId,
+        expertName,
+        ...payload,
+      })
+    }
+
+    const { default: axios } = await import('axios')
+    // Expert AgentLoop + MCP can exceed 2 minutes easily (max_actions up to 20).
+    // Short axios timeout aborts the SSE mid-flight → UI "专家服务暂时不可用: aborted".
+    const res = await axios({
+      method: 'POST', url, data: body,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      responseType: 'stream',
+      timeout: 600_000,
+      // Avoid Node treating idle gaps between tool rounds as a failure.
+      maxRedirects: 0,
+    })
+
+    let fullText = ''
+    let buffer = ''
+    let sawDelta = false
+    let streamSessionId = ''
+    const seenEventKinds: string[] = []
+    const decoder = new StringDecoder('utf8')
+    let finished = false
+
+    const fetchLatestAssistantReply = async (sessionId: string): Promise<string> => {
+      const sid = sessionId.trim()
+      if (!sid) return ''
+      try {
+        const msgRes = await axios.get(
+          `${baseUrl}/api/chat/sessions/${encodeURIComponent(sid)}/messages`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { tenant_id: 'tenant_demo' },
+            timeout: 30_000,
+          },
+        )
+        const rows = Array.isArray(msgRes.data) ? msgRes.data as Array<{ role?: string; content?: string }> : []
+        for (let i = rows.length - 1; i >= 0; i -= 1) {
+          const row = rows[i]
+          if (row?.role === 'assistant' && typeof row.content === 'string' && row.content.trim()) {
+            return row.content.trim()
+          }
+        }
+      } catch (err) {
+        console.warn('[A2A] fallback fetch messages failed:', (err as Error).message)
+      }
+      return ''
+    }
+
+    return new Promise<{ type: 'chat'; content: string; trace?: { viaA2A: boolean; expertName?: string; mcpCalled: boolean | null; mcpUnavailable?: boolean; mcpUnavailableDetail?: string; steps: TraceStep[] } }>((resolve, reject) => {
+      const finish = (text: string) => {
+        if (finished) return
+        finished = true
+        void (async () => {
+          let content = (text || '').trim()
+          if (!content && streamSessionId) {
+            console.warn(
+              '[A2A] finish() empty from SSE; fetching messages. session=',
+              streamSessionId,
+              'kinds=',
+              seenEventKinds.join(','),
+              'steps=',
+              traceSteps.length,
+            )
+            content = await fetchLatestAssistantReply(streamSessionId)
+          } else if (!content) {
+            console.warn(
+              '[A2A] finish() with empty reply; no sessionId. kinds=',
+              seenEventKinds.join(','),
+              'steps=',
+              traceSteps.length,
+            )
+          }
+          if (content) {
+            emitStream({ kind: 'replace', content })
+          }
+          resolve({
+            type: 'chat',
+            content,
+            trace: {
+              viaA2A: true,
+              expertName,
+              mcpCalled: mcpCalled ?? false,
+              mcpUnavailable,
+              mcpUnavailableDetail,
+              steps: traceSteps,
+            },
+          })
+        })()
+      }
+
+      const consumeSseBuffer = (flushAll: boolean) => {
+        // Split on SSE event boundaries. Never decode mid-codepoint (StringDecoder
+        // holds partial UTF-8); chunk.toString('utf-8') previously corrupted Chinese
+        // reply JSON → silent parse failures → empty bubble.
+        while (true) {
+          const sep = buffer.indexOf('\n\n')
+          if (sep < 0) break
+          const raw = buffer.slice(0, sep)
+          buffer = buffer.slice(sep + 2)
+          for (const line of raw.split('\n')) {
+            const trimmed = line.trim()
+            if (!trimmed.startsWith('data:')) continue
+            const jsonStr = trimmed.startsWith('data: ')
+              ? trimmed.slice(6)
+              : trimmed.slice(5).trimStart()
+            if (!jsonStr || jsonStr === '[DONE]') continue
+            try {
+              handlePayload(JSON.parse(jsonStr) as Record<string, unknown>)
+            } catch (err) {
+              console.warn('[A2A] SSE JSON parse failed:', (err as Error).message, jsonStr.slice(0, 160))
+            }
+          }
+        }
+        if (flushAll && buffer.trim()) {
+          for (const line of buffer.split('\n')) {
+            const trimmed = line.trim()
+            if (!trimmed.startsWith('data:')) continue
+            const jsonStr = trimmed.startsWith('data: ')
+              ? trimmed.slice(6)
+              : trimmed.slice(5).trimStart()
+            if (!jsonStr || jsonStr === '[DONE]') continue
+            try {
+              handlePayload(JSON.parse(jsonStr) as Record<string, unknown>)
+            } catch (err) {
+              console.warn('[A2A] SSE trailing JSON parse failed:', (err as Error).message, jsonStr.slice(0, 160))
+            }
+          }
+          buffer = ''
+        }
+      }
+
+      const noteSessionId = (data: Record<string, unknown>, payload: Record<string, unknown>) => {
+        const sid = data.sessionId || data.session_id || payload.sessionId || payload.session_id
+        if (typeof sid === 'string' && sid.trim()) streamSessionId = sid.trim()
+      }
+
+      const handlePayload = (payload: Record<string, unknown>) => {
+        const data = (payload.data || payload) as Record<string, unknown>
+        const kind = String(data.kind || payload.event || payload.type || '')
+        if (kind) seenEventKinds.push(kind)
+        noteSessionId(data, payload)
+        if (kind === 'stream_delta' && typeof data.content === 'string' && data.content) {
+          fullText += data.content
+          sawDelta = true
+          emitStream({ kind: 'delta', content: data.content })
+        } else if (kind === 'stream_replace' && typeof data.content === 'string') {
+          fullText = data.content
+          sawDelta = true
+          emitStream({ kind: 'replace', content: data.content })
+        } else if (kind === 'complete' || String(payload.event || '') === 'complete') {
+          const reply = typeof data.reply === 'string'
+            ? data.reply
+            : (typeof (payload as { reply?: unknown }).reply === 'string'
+              ? String((payload as { reply: string }).reply)
+              : '')
+          if (reply) {
+            fullText = reply
+            sawDelta = true
+            emitStream({ kind: 'replace', content: reply })
+          }
+        } else if (kind === 'capability_progress') {
+          const stepRaw = (data.step && typeof data.step === 'object')
+            ? data.step as Record<string, unknown>
+            : null
+          const step: TraceStep = {
+            id: String(stepRaw?.id || `${data.tool_name || data.text || Date.now()}`),
+            label: String(stepRaw?.label || data.text || '能力调用'),
+            kind: (String(stepRaw?.kind || 'tool') as TraceStep['kind']),
+            status: stepRaw?.status ? String(stepRaw.status) : undefined,
+            provider: stepRaw?.provider ? String(stepRaw.provider) : undefined,
+            tool_name: stepRaw?.tool_name ? String(stepRaw.tool_name) : undefined,
+          }
+          const idx = traceSteps.findIndex((s) =>
+            s.id === step.id
+            || (s.tool_name && step.tool_name && s.tool_name === step.tool_name && (
+              s.kind === step.kind
+              || (s.kind === 'tool' && step.kind === 'mcp')
+              || (s.kind === 'mcp' && step.kind === 'tool')
+            ))
+            || (s.label === step.label && s.kind === step.kind)
+          )
+          if (idx >= 0) traceSteps[idx] = { ...traceSteps[idx], ...step }
+          else traceSteps.push(step)
+          if (data.mcp_unavailable === true) {
+            mcpUnavailable = true
+            if (typeof data.mcp_unavailable_detail === 'string') {
+              mcpUnavailableDetail = data.mcp_unavailable_detail
+            }
+          }
+          if (step.kind === 'mcp' && step.status !== 'unavailable') mcpCalled = true
+          emitStream({
+            kind: 'trace',
+            content: step.label,
+            step,
+            mcpUnavailable,
+            mcpUnavailableDetail,
+          })
+        } else if (kind === 'capability_trace') {
+          const steps = Array.isArray(data.steps) ? data.steps as TraceStep[] : []
+          for (const step of steps) {
+            const idx = traceSteps.findIndex((s) =>
+              s.id === step.id
+              || (s.tool_name && step.tool_name && s.tool_name === step.tool_name && (
+                s.kind === step.kind
+                || (s.kind === 'tool' && step.kind === 'mcp')
+                || (s.kind === 'mcp' && step.kind === 'tool')
+              ))
+              || (s.label === step.label && s.kind === step.kind)
+            )
+            if (idx >= 0) traceSteps[idx] = { ...traceSteps[idx], ...step }
+            else traceSteps.push(step)
+          }
+          if (data.mcp_unavailable === true) {
+            mcpUnavailable = true
+            if (typeof data.mcp_unavailable_detail === 'string') {
+              mcpUnavailableDetail = data.mcp_unavailable_detail
+            }
+          }
+          if (typeof data.mcp_called === 'boolean') mcpCalled = data.mcp_called
+          else if (traceSteps.some((s) => s.kind === 'mcp' && s.status !== 'unavailable')) mcpCalled = true
+          emitStream({
+            kind: 'trace_summary',
+            steps: traceSteps,
+            mcpCalled: mcpCalled ?? false,
+            mcpUnavailable,
+            mcpUnavailableDetail,
+          })
+        } else if (kind === 'status') {
+          const text = String(data.text || data.message || '').trim()
+          const phase = String(data.phase || data.state || '')
+          if (phase === 'running' && (!text || text === 'running')) {
+            // Heartbeat — keep connection alive; don't spam the trace list.
+          } else if (text) {
+            const step: TraceStep = {
+              id: `status:${text}`,
+              label: text,
+              kind: 'status',
+              status: phase || 'status',
+            }
+            const idx = traceSteps.findIndex((s) => s.id === step.id || (s.kind === 'status' && s.label === text))
+            if (idx >= 0) traceSteps[idx] = { ...traceSteps[idx], ...step }
+            else traceSteps.push(step)
+            emitStream({ kind: 'status', content: text, phase, step })
+          }
+        } else if (kind === 'error') {
+          const message = String(data.message || '专家执行出错')
+          emitStream({ kind: 'error', content: message })
+        }
+      }
+
+      res.data.on('data', (chunk: Buffer) => {
+        buffer += decoder.write(chunk)
+        consumeSseBuffer(false)
+      })
+
+      res.data.on('end', () => {
+        buffer += decoder.end()
+        consumeSseBuffer(true)
+        finish(fullText)
+      })
+
+      res.data.on('error', (err: Error) => {
+        console.error('[A2A] SSE stream error:', err.message)
+        buffer += decoder.end()
+        consumeSseBuffer(true)
+        if (fullText.trim()) {
+          console.warn('[A2A] Returning partial reply after stream abort')
+          finish(fullText)
+          return
+        }
+        if (!finished) reject(err)
+      })
+    })
+  }
 
   // ---- Helper: call backend LLM proxy ----
   async function _planViaBackend(
@@ -244,12 +621,9 @@ ${toolsJson}
       { role: 'user', content: userInput + modeHint },
     ]
 
-    const body: Record<string, unknown> = { messages }
-    if (expertId) {
-      body.agent_id = expertId
-    } else {
-      body.model_config_id = modelId
-    }
+    // Expert chat is handled exclusively by EXECUTE_TASK → _planViaA2A.
+    // This helper is only for non-expert cloud-model turns.
+    const body: Record<string, unknown> = { messages, model_config_id: modelId }
 
     const result = await fastApiFetch('POST', '/api/chat/proxy/send', body) as { content: string }
 
@@ -562,7 +936,11 @@ ${toolsJson}
     const dir = getSessionDir()
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     const filePath = path.join(dir, `${session.id}.json`)
-    fs.writeFileSync(filePath, JSON.stringify(session, null, 2), 'utf-8')
+    const payload = {
+      ...session,
+      updatedAt: typeof session?.updatedAt === 'number' ? session.updatedAt : Date.now(),
+    }
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8')
     return { success: true }
   })
 
@@ -577,11 +955,23 @@ ${toolsJson}
     const dir = getSessionDir()
     if (!fs.existsSync(dir)) return []
     const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
-    return files.map((f) => {
-      const content = fs.readFileSync(path.join(dir, f), 'utf-8')
+    const rows = files.map((f) => {
+      const filePath = path.join(dir, f)
+      const content = fs.readFileSync(filePath, 'utf-8')
       const session = JSON.parse(content)
-      return { id: session.id, title: session.title, date: session.date, workspace: session.workspace }
+      const mtime = fs.statSync(filePath).mtimeMs
+      const updatedAt = typeof session.updatedAt === 'number' ? session.updatedAt : mtime
+      return {
+        id: session.id,
+        title: session.title,
+        date: session.date,
+        workspace: session.workspace,
+        updatedAt,
+      }
     })
+    // 最近使用置顶
+    rows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    return rows
   })
 
   ipcMain.handle(IPC_CHANNELS.SESSION_DELETE, async (_event, id: string) => {
@@ -816,6 +1206,213 @@ ${toolsJson}
     return MOCK_GENERAL_SKILLS
   })
 
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_STORE_LIST, async (_e, filters?: Record<string, unknown>) => {
+    const qs = new URLSearchParams()
+    if (filters?.q) qs.set('q', String(filters.q))
+    if (filters?.source) qs.set('source', String(filters.source))
+    if (filters?.category_id) qs.set('category_id', String(filters.category_id))
+    if (filters?.sort) qs.set('sort', String(filters.sort))
+    if (filters?.featured) qs.set('featured', 'true')
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return fastApiFetch('GET', `/api/enterprise/general-skills/store${suffix}`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_LEADERBOARD, async (_e, filters?: Record<string, unknown>) => {
+    const qs = new URLSearchParams()
+    if (filters?.metric) qs.set('metric', String(filters.metric))
+    if (filters?.category_id) qs.set('category_id', String(filters.category_id))
+    if (filters?.limit) qs.set('limit', String(filters.limit))
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return fastApiFetch('GET', `/api/enterprise/general-skills/leaderboard${suffix}`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_CATEGORIES, async () => {
+    return fastApiFetch('GET', '/api/enterprise/skill-categories')
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_LIBRARY_LIST, async () => {
+    return fastApiFetch('GET', '/api/enterprise/general-skills/library/me')
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_LIBRARY_ADD, async (_e, slug: string) => {
+    return fastApiFetch('POST', `/api/enterprise/general-skills/${encodeURIComponent(slug)}/library`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_LIBRARY_REMOVE, async (_e, slug: string) => {
+    return fastApiFetch('DELETE', `/api/enterprise/general-skills/${encodeURIComponent(slug)}/library`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_INSTALL_PROMPT, async (_e, slug: string, platform = 'cursor') => {
+    return fastApiFetch(
+      'GET',
+      `/api/enterprise/general-skills/${encodeURIComponent(slug)}/install-prompt?platform=${encodeURIComponent(platform)}`,
+    )
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_REVISIONS, async (_e, slug: string) => {
+    return fastApiFetch('GET', `/api/enterprise/general-skills/${encodeURIComponent(slug)}/revisions`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_ACCESS_REQUEST, async (_e, slug: string, body: { request_type: string; reason: string }) => {
+    return fastApiFetch('POST', `/api/enterprise/general-skills/${encodeURIComponent(slug)}/access-requests`, body)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_GET, async (_e, slug: string) => {
+    return fastApiFetch('GET', `/api/enterprise/general-skills/${encodeURIComponent(slug)}`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_IMPORT_PACKAGE, async (_e, payload: {
+    filename: string
+    content_base64: string
+    access_level?: string
+    category_id?: string
+    version?: string
+    name?: string
+    slug?: string
+    description?: string
+    status?: string
+    changelog?: string
+  }) => {
+    try {
+      return await fastApiFetch('POST', '/api/enterprise/general-skills/import-package', {
+        filename: payload.filename,
+        content_base64: payload.content_base64,
+        access_level: payload.access_level || 'L1',
+        category_id: payload.category_id || null,
+        version: payload.version || '1.0.0',
+        name: payload.name || null,
+        slug: payload.slug || null,
+        description: payload.description || null,
+        status: payload.status || 'published',
+        source: 'local',
+        changelog: payload.changelog || null,
+      })
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { detail?: string } }; message?: string }
+      const detail = ax.response?.data?.detail
+      return { error: typeof detail === 'string' ? detail : (ax.message || '导入失败') }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_IMPORT_URL, async (_e, payload: {
+    source: string
+    access_level?: string
+    category_id?: string
+    version?: string
+    name?: string
+    status?: string
+  }) => {
+    try {
+      return await fastApiFetch('POST', '/api/enterprise/general-skills/import-skillhub', {
+        source: payload.source,
+        access_level: payload.access_level || 'L1',
+        category_id: payload.category_id || null,
+        version: payload.version || null,
+        name: payload.name || null,
+        status: payload.status || 'published',
+      })
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { detail?: string } }; message?: string }
+      const detail = ax.response?.data?.detail
+      return { error: typeof detail === 'string' ? detail : (ax.message || '导入失败') }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_ACCESS_INBOX, async (_e, status = 'pending') => {
+    return fastApiFetch('GET', `/api/enterprise/general-skills/access-requests/inbox?status=${encodeURIComponent(status)}`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_ACCESS_DECIDE, async (_e, slug: string, requestId: string, body: { decision: string; note?: string }) => {
+    return fastApiFetch(
+      'POST',
+      `/api/enterprise/general-skills/${encodeURIComponent(slug)}/access-requests/${encodeURIComponent(requestId)}/decide`,
+      body,
+    )
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_STAR, async (_e, slug: string) => {
+    return fastApiFetch('POST', `/api/enterprise/general-skills/${encodeURIComponent(slug)}/star`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GENERAL_SKILL_CREATE_REVISION, async (_e, slug: string, body: { version: string; changelog: string; markdown?: string }) => {
+    return fastApiFetch('POST', `/api/enterprise/general-skills/${encodeURIComponent(slug)}/revisions`, body)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_SKILL_TOKEN_CREATE, async (_e, body?: { device_label?: string; ttl_hours?: number; purpose?: string }) => {
+    return fastApiFetch('POST', '/api/enterprise/agent-tokens', body || { device_label: 'cursor', ttl_hours: 720 })
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_SKILL_TOKEN_LIST, async (_e, opts?: { purpose?: string }) => {
+    const purpose = opts?.purpose?.trim()
+    const path = purpose
+      ? `/api/enterprise/agent-tokens?purpose=${encodeURIComponent(purpose)}`
+      : '/api/enterprise/agent-tokens'
+    return fastApiFetch('GET', path)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_SKILL_TOKEN_REVOKE, async (_e, tokenId: string) => {
+    return fastApiFetch('DELETE', `/api/enterprise/agent-tokens/${encodeURIComponent(tokenId)}`)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_SKILL_TOKEN_DELETE, async (_e, tokenId: string) => {
+    return fastApiFetch(
+      'DELETE',
+      `/api/enterprise/agent-tokens/${encodeURIComponent(tokenId)}?permanent=true`,
+    )
+  })
+
+  ipcMain.handle(IPC_CHANNELS.A2A_ACCESS_BACKEND_ME, async () => {
+    try {
+      return await fastApiFetch('GET', '/api/auth/me')
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : '无法获取后端用户' }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.A2A_ACCESS_PROBE, async (_e, body?: { token?: string }) => {
+    const baseUrl = getFastApiBaseUrl()
+    if (!isFastApiReady()) {
+      return { ok: false, baseUrl, error: '后端未就绪' }
+    }
+    const bearer = (body?.token || getToken() || '').trim()
+    if (!bearer) {
+      return { ok: false, baseUrl, error: '无可用 Token' }
+    }
+    try {
+      const axios = (await import('axios')).default
+      const res = await axios.get(`${baseUrl}/a2a/agents`, {
+        headers: { Authorization: `Bearer ${bearer}` },
+        timeout: 15000,
+        validateStatus: () => true,
+      })
+      if (res.status !== 200) {
+        return {
+          ok: false,
+          baseUrl,
+          status: res.status,
+          error: typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data || res.statusText),
+        }
+      }
+      const agents = Array.isArray(res.data?.agents) ? res.data.agents : Array.isArray(res.data) ? res.data : []
+      const sampleUrls = agents
+        .slice(0, 3)
+        .map((a: { url?: string; name?: string }) => ({ name: a?.name, url: a?.url }))
+      const mismatched = sampleUrls.some(
+        (item: { url?: string }) => item.url && !String(item.url).startsWith(baseUrl),
+      )
+      return {
+        ok: true,
+        baseUrl,
+        status: 200,
+        agentCount: agents.length,
+        sampleUrls,
+        cardUrlMismatch: mismatched,
+      }
+    } catch (err) {
+      return { ok: false, baseUrl, error: err instanceof Error ? err.message : '探测失败' }
+    }
+  })
+
   // ---- Resource Sync Helper ----
 
   /**
@@ -825,7 +1422,7 @@ ${toolsJson}
   function toBackendResourceType(localType: string): string {
     switch (localType) {
       case 'sop': return 'skill'
-      case 'mcp': return 'tool'
+      case 'mcp': return 'mcp'
       case 'knowledge': return 'knowledge_base'
       case 'general_skill': return 'general_skill'
       default: return localType
@@ -905,9 +1502,35 @@ ${toolsJson}
 
     // 2. Try backend sync (non-blocking)
     try {
-      await syncAgentBindingsToBackend(params.targetAgentId, params.resourceType, params.resourceIds, 'add')
-    } catch {
+      if (params.resourceType === 'mcp') {
+        // MCP: resourceIds are JSON strings like {"name":"...","url":"..."}
+        // Convert to MCPServer IDs first, then sync
+        const mcpIds: string[] = []
+        for (const rawId of params.resourceIds) {
+          try {
+            const { name, url } = JSON.parse(rawId) as { name: string; url: string }
+            const mcpSrv = await fastApiFetch<{ id: string; name: string }>(
+              'POST', '/api/enterprise/mcp-servers', {
+                name,
+                connection: { transport: 'sse', url },
+              }
+            )
+            mcpIds.push(mcpSrv.id)
+          } catch {
+            // Skip invalid JSON entries
+          }
+        }
+        if (mcpIds.length > 0) {
+          await syncAgentBindingsToBackend(params.targetAgentId, params.resourceType, mcpIds, 'add')
+        }
+      } else {
+        await syncAgentBindingsToBackend(params.targetAgentId, params.resourceType, params.resourceIds, 'add')
+      }
+    } catch (err) {
       // Backend sync failure is non-blocking — local state is the fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[bindings-sync] MCP import sync failed (non-blocking):', (err as Error).message)
+      }
     }
     return localResult
   })
@@ -918,7 +1541,28 @@ ${toolsJson}
 
     // 2. Try backend sync (non-blocking)
     try {
-      await syncAgentBindingsToBackend(params.targetAgentId, params.resourceType, params.resourceIds, 'remove')
+      if (params.resourceType === 'mcp') {
+        // MCP: resourceIds are JSON strings. Look up MCPServer IDs by name.
+        const mcpIds: string[] = []
+        for (const rawId of params.resourceIds) {
+          try {
+            const { name } = JSON.parse(rawId) as { name: string; url?: string }
+            const escaped = encodeURIComponent(name)
+            const list = await fastApiFetch<Array<{ id: string; name: string }>>(
+              'GET', `/api/enterprise/mcp-servers?search=${escaped}`
+            )
+            const match = list.find((s: { name: string }) => s.name === name)
+            if (match) mcpIds.push(match.id)
+          } catch {
+            // Skip invalid JSON entries
+          }
+        }
+        if (mcpIds.length > 0) {
+          await syncAgentBindingsToBackend(params.targetAgentId, params.resourceType, mcpIds, 'remove')
+        }
+      } else {
+        await syncAgentBindingsToBackend(params.targetAgentId, params.resourceType, params.resourceIds, 'remove')
+      }
     } catch {
       // Backend sync failure is non-blocking
     }
@@ -1012,11 +1656,70 @@ ${toolsJson}
     })
   }
 
+  /** One-time migration: sync local binding-overrides.json mcpServers to backend */
+  async function migrateLocalMcpToBackend(): Promise<void> {
+    try {
+      const overrides = expertService.getBindingOverrides() as Record<string, ExpertBindings>
+      for (const [agentId, bindings] of Object.entries(overrides)) {
+        if (!bindings?.mcpServers?.length) continue
+
+        // Check if backend already has MCP bindings for this agent (skip if migrated)
+        try {
+          const existing = await fastApiFetch<Array<{ resource_type: string }>>(
+            'GET', `/api/enterprise/agents/${agentId}/resources`
+          )
+          const hasMcp = existing.some(r => r.resource_type === 'mcp')
+          if (hasMcp) continue
+        } catch {
+          // Backend unreachable, skip migration
+          continue
+        }
+
+        for (const raw of bindings.mcpServers) {
+          try {
+            const { name, url } = JSON.parse(raw) as { name: string; url: string }
+            if (!name || !url) continue
+            // Create MCPServer if not exists (idempotent: POST + fallback to GET)
+            let mcpId: string | undefined
+            try {
+              const created = await fastApiFetch<{ id: string }>(
+                'POST', '/api/enterprise/mcp-servers', {
+                  name,
+                  connection: { transport: url.includes('/sse') ? 'sse' : 'streamable_http', url },
+                }
+              )
+              mcpId = created.id
+            } catch {
+              // Server may already exist, look up by name
+              try {
+                const list = await fastApiFetch<Array<{ id: string; name: string }>>(
+                  'GET', `/api/enterprise/mcp-servers?search=${encodeURIComponent(name)}`
+                )
+                const match = list.find((s: { name: string }) => s.name === name)
+                if (match) mcpId = match.id
+              } catch { /* lookup failed, skip this entry */ }
+            }
+            if (!mcpId) continue
+
+            // Create binding
+            await syncAgentBindingsToBackend(agentId, 'mcp', [mcpId], 'add')
+          } catch {
+            // Skip single entry failures
+          }
+        }
+      }
+    } catch {
+      // Migration is non-blocking
+    }
+  }
+
   // ---- Expert (FastAPI backend proxy) ----
   ipcMain.handle(IPC_CHANNELS.EXPERT_LIST, async () => {
     try {
       const agents = await fastApiFetch('GET', '/api/chat/agents') as FastApiAgent[]
       if (Array.isArray(agents)) {
+        // One-time MCP migration: sync local mcpServers to backend MCPServer + bindings
+        await migrateLocalMcpToBackend()
         return mergeBindingOverrides(mapAgentsToExperts(agents))
       }
     } catch { /* fall through */ }

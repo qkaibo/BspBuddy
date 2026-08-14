@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     model_thinking_models: str = ""
     tool_timeout_seconds: float = 8.0
     tool_base_url: str = "http://localhost:5173"
-    base_url: str = ""  # public-facing base URL for A2A agent cards; empty = auto-detect
+    base_url: str = ""  # public-facing base URL for A2A agent cards; empty = http://127.0.0.1:52020
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     general_skill_runtime_python: str = ""
     general_skill_runtime_venv: str = ""

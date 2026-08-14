@@ -55,10 +55,37 @@ def get_current_user(
 ) -> User:
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    payload = _decode_token(credentials.credentials)
+    raw = credentials.credentials
+    try:
+        payload = _decode_token(raw)
+        user = db.get(User, payload.get("user_id", ""))
+        if not user or user.tenant_id != payload.get("tenant_id"):
+            raise HTTPException(status_code=401, detail="Invalid user token")
+        return user
+    except HTTPException:
+        # Agent skill / A2A access token fallback (bbsk_… / bba2a_…)
+        if raw.startswith(("bbsk_", "bba2a_")):
+            from app.api.skills_extras import resolve_user_from_agent_token
+
+            agent_user = resolve_user_from_agent_token(db, raw)
+            if agent_user:
+                return agent_user
+        raise
+
+
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_session),
+) -> User | None:
+    if not credentials:
+        return None
+    try:
+        payload = _decode_token(credentials.credentials)
+    except HTTPException:
+        return None
     user = db.get(User, payload.get("user_id", ""))
     if not user or user.tenant_id != payload.get("tenant_id"):
-        raise HTTPException(status_code=401, detail="Invalid user token")
+        return None
     return user
 
 
