@@ -4,8 +4,9 @@ import { registerIpcHandlers } from '@/main/services/ipc-handlers'
 import { updateService } from '@/main/services/update-service'
 import { startFastApi, stopFastApi } from '@/main/services/fastapi-bridge'
 
-// Enable CDP remote debugging for diagnostics
+// Enable CDP remote debugging for diagnostics / L3 UI capture
 app.commandLine.appendSwitch('remote-debugging-port', '9222')
+app.commandLine.appendSwitch('remote-allow-origins', '*')
 
 let mainWindow: BrowserWindow | null = null
 
