@@ -7,6 +7,7 @@ import { Timeline } from './Timeline'
 import { PermissionSelector } from './PermissionSelector'
 import { PermissionConfirmModal } from './PermissionConfirmModal'
 import { ConversationContextTags, AddResourceButton, type ActiveResource } from './ConversationContextBar'
+import { ChatMarkdown } from './ChatMarkdown'
 import { usePermission } from '../hooks/usePermission'
 import { createIpcClient } from '../lib/client'
 import { IPC_CHANNELS } from '../lib/types'
@@ -231,6 +232,64 @@ export function ChatPanel({
               </div>
             ) : msg.role === 'assistant' ? (
               <div>
+                {msg.trace?.viaA2A && (
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+                    marginBottom: 8, fontSize: 11, color: 'var(--text-secondary)',
+                  }}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '2px 8px', borderRadius: 999,
+                      background: 'rgba(37,99,235,0.08)', color: 'var(--accent)', fontWeight: 600,
+                    }}>
+                      A2A{msg.trace.expertName ? ` · ${msg.trace.expertName}` : ' · 专家'}
+                    </span>
+                    {msg.trace.mcpUnavailable && (
+                      <span
+                        title={msg.trace.mcpUnavailableDetail || '绑定的 MCP 服务器不可达'}
+                        style={{
+                        padding: '2px 8px', borderRadius: 999,
+                        background: 'rgba(220,38,38,0.12)', color: '#dc2626', fontWeight: 600,
+                      }}>MCP 不可达</span>
+                    )}
+                    {!msg.trace.mcpUnavailable && msg.trace.mcpCalled === true && (
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 999,
+                        background: 'rgba(16,185,129,0.12)', color: '#059669', fontWeight: 600,
+                      }}>已调用 MCP</span>
+                    )}
+                    {!msg.trace.mcpUnavailable && msg.trace.mcpCalled === false && (
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 999,
+                        background: 'rgba(15,23,42,0.06)', color: 'var(--text-tertiary)', fontWeight: 500,
+                      }}>未调用 MCP</span>
+                    )}
+                    {!msg.trace.mcpUnavailable && msg.trace.mcpCalled == null && isProcessing && msg === messages[messages.length - 1] && (
+                      <span style={{ color: 'var(--text-tertiary)' }}>检测 MCP 中…</span>
+                    )}
+                  </div>
+                )}
+                {msg.trace?.steps && msg.trace.steps.length > 0 && (
+                  <div style={{
+                    marginBottom: 8, padding: '8px 10px', borderRadius: 8,
+                    background: 'rgba(15,23,42,0.03)', border: '1px solid rgba(15,23,42,0.06)',
+                    fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5,
+                  }}>
+                    {msg.trace.steps.map((step) => (
+                      <div key={step.id} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                        <span style={{
+                          width: 6, height: 6, borderRadius: 99, marginTop: 5, flexShrink: 0,
+                          background: step.kind === 'mcp'
+                            ? '#10b981'
+                            : step.kind === 'status'
+                              ? 'var(--accent)'
+                              : 'var(--text-tertiary)',
+                        }} />
+                        <span>{step.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {msg.plan && msg.plan.steps.length > 0 && (
                   <div style={{ background: 'var(--accent-light)', borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 10, border: '1px solid rgba(79,110,247,.12)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -245,13 +304,20 @@ export function ChatPanel({
                   </div>
                 )}
                 {msg.content && (
-                  <div style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-primary)', padding: '12px 16px', background: '#f8fafc', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4, border: '1px solid rgba(15,23,42,0.06)', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                  <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4, border: '1px solid rgba(15,23,42,0.06)' }}>
+                    <ChatMarkdown content={msg.content} />
+                  </div>
                 )}
               </div>
             ) : null}
           </div>
         ))}
-        {isProcessing && !activePlan && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 13 }}><Loader2 size={13} style={{ animation: 'spin 2s linear infinite' }} aria-hidden="true" />Thinking…</div>}
+        {isProcessing && !activePlan && !(
+          messages[messages.length - 1]?.role === 'assistant'
+          && Boolean(messages[messages.length - 1]?.content)
+        ) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 13 }}><Loader2 size={13} style={{ animation: 'spin 2s linear infinite' }} aria-hidden="true" />Thinking…</div>
+        )}
         {activePlan && (
           <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: 16, border: '1px solid var(--border)', marginTop: 8, boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

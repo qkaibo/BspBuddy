@@ -88,6 +88,30 @@ function extractStatus(metadata: Record<string, unknown> | undefined, dbStatus: 
  */
 export function mapAgentToExpert(agent: FastApiAgent): Expert {
   const meta = agent.metadata || {}
+  const bindings = extractBindings(meta)
+
+  // Merge backend resources into bindings for server-side data types
+  if (Array.isArray(agent.resources) && agent.resources.length > 0) {
+    const mcpIds: string[] = []
+    const skillIds: string[] = []
+    const generalSkillIds: string[] = []
+    const kbIds: string[] = []
+    for (const r of agent.resources as Array<{ resource_type?: string; resource_id?: string; metadata?: Record<string, unknown> }>) {
+      if (r.resource_type === 'mcp' && r.resource_id) {
+        const displayName = (r.metadata?.name as string) || r.resource_id
+        mcpIds.push(JSON.stringify({ name: displayName, id: r.resource_id }))
+      }
+      if (r.resource_type === 'skill' && r.resource_id) skillIds.push(r.resource_id)
+      if (r.resource_type === 'general_skill' && r.resource_id) generalSkillIds.push(r.resource_id)
+      if (r.resource_type === 'knowledge_base' && r.resource_id) kbIds.push(r.resource_id)
+    }
+    // Only override if local bindings are empty (backend is source of truth)
+    if (mcpIds.length > 0 && bindings.mcpServers.length === 0) bindings.mcpServers = mcpIds
+    if (skillIds.length > 0 && bindings.sopSkills.length === 0) bindings.sopSkills = skillIds
+    if (generalSkillIds.length > 0 && bindings.skills.length === 0) bindings.skills = generalSkillIds
+    if (kbIds.length > 0 && bindings.knowledgeBases.length === 0) bindings.knowledgeBases = kbIds
+  }
+
   return {
     id: agent.id,
     name: agent.name,
@@ -109,7 +133,7 @@ export function mapAgentToExpert(agent: FastApiAgent): Expert {
     usageCount: (meta.usageCount as number) || undefined,
     status: extractStatus(meta, agent.status),
     isOverall: agent.is_overall,
-    bindings: extractBindings(meta),
+    bindings,
   }
 }
 

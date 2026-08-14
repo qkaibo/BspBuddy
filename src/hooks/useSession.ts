@@ -7,6 +7,7 @@ export interface SessionData {
   id: string
   title: string
   date: string
+  updatedAt?: number
   messages: Message[]
   plan: TaskPlan | null
   workspace?: string
@@ -34,6 +35,7 @@ export function useSession() {
       id,
       title,
       date: new Date().toLocaleDateString(),
+      updatedAt: Date.now(),
       messages,
       plan,
       workspace,

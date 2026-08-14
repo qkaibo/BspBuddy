@@ -11,7 +11,11 @@
     "build:web": "cd apps/web && npx vite build",
     "build:mobile": "cd apps/mobile && npx vite build",
     "preview": "electron-vite preview",
-    "start": "electron ."
+    "start": "electron .",
+    "website:preview": "npx --yes serve website -l 5173",
+    "website:pack": "powershell -NoProfile -ExecutionPolicy Bypass -File website/pack.ps1",
+    "website:docker": "docker build -t bspbuddy-website:latest website",
+    "website:docker:run": "docker run --rm -p 8080:80 bspbuddy-website:latest"
   },
   "build": {
     "appId": "com.workbuddy.app",
@@ -59,6 +63,8 @@
     "mime-types": "^2.1.35",
     "openai": "^4.73.0",
     "python-shell": "^5.0.0",
+    "react-markdown": "^9.1.0",
+    "remark-gfm": "^4.0.1",
     "uuid": "^10.0.0",
     "zod": "^3.23.8"
   },
