@@ -54,6 +54,7 @@ from app.db.models import (
     KnowledgeBucket,
     KnowledgeChunk,
     KnowledgeDocument,
+    MCPServer,
     Message,
     ScheduledTask,
     Skill,
@@ -683,7 +684,7 @@ def _agent_resource_timeline_events(
             for binding in bindings
             if binding.resource_type == resource_type
         }
-        for resource_type in ("skill", "general_skill", "knowledge_base", "tool")
+        for resource_type in ("skill", "general_skill", "knowledge_base", "tool", "mcp")
     }
     skills = {
         row.id: row
@@ -721,6 +722,15 @@ def _agent_resource_timeline_events(
             )
         ).all()
     } if ids_by_type["tool"] else {}
+    mcp_servers = {
+        row.id: row
+        for row in db.exec(
+            select(MCPServer).where(
+                MCPServer.tenant_id == tenant_id,
+                MCPServer.id.in_(ids_by_type["mcp"]),
+            )
+        ).all()
+    } if ids_by_type["mcp"] else {}
     skill_branches = {
         row.skill_id: row
         for row in db.exec(
@@ -766,6 +776,11 @@ def _agent_resource_timeline_events(
             if not resource or not resource.enabled:
                 continue
             kind, label = "tool", resource.display_name or resource.name
+        elif binding.resource_type == "mcp":
+            resource = mcp_servers.get(binding.resource_id)
+            if not resource or not resource.enabled:
+                continue
+            kind, label = "mcp", resource.name
         else:
             continue
         events.append(
@@ -1102,7 +1117,7 @@ def _source_resource_binding(
     ).first()
 
 
-AgentResource = Skill | GeneralSkill | KnowledgeBase | Tool
+AgentResource = Skill | GeneralSkill | KnowledgeBase | Tool | MCPServer
 
 
 def _blocked_learning_reason(
@@ -1159,6 +1174,8 @@ def _open_gallery_resource_enabled(
     if resource_type == "knowledge_base" and isinstance(resolved, KnowledgeBase):
         return resolved.status == "active"
     if resource_type == "tool" and isinstance(resolved, Tool):
+        return resolved.enabled
+    if resource_type == "mcp" and isinstance(resolved, MCPServer):
         return resolved.enabled
     return False
 
@@ -1491,6 +1508,15 @@ def _resolve_resource(
                 select(Tool).where(Tool.tenant_id == tenant_id, Tool.name == identifier)
             ).first()
         )
+    if resource_type == "mcp":
+        return (
+            db.get(MCPServer, identifier)
+            or db.exec(
+                select(MCPServer).where(
+                    MCPServer.tenant_id == tenant_id, MCPServer.id == identifier
+                )
+            ).first()
+        )
     return None
 
 
@@ -1542,6 +1568,7 @@ def _resource_binding_visible_in_agent_summary(
         "general_skill": GeneralSkill,
         "knowledge_base": KnowledgeBase,
         "tool": Tool,
+        "mcp": MCPServer,
     }
     model = model_by_type.get(binding.resource_type)
     if model is None:
@@ -1627,6 +1654,7 @@ def _ensure_resource_exists(db: Session, tenant_id: str, item: AgentResourceBind
         "general_skill": GeneralSkill,
         "knowledge_base": KnowledgeBase,
         "tool": Tool,
+        "mcp": MCPServer,
     }[item.resource_type]
     row = db.get(model, item.resource_id)
     if not row or row.tenant_id != tenant_id:

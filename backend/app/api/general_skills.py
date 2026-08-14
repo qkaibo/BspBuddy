@@ -13,10 +13,10 @@ from html import unescape
 from io import BytesIO
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urljoin, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from sqlmodel import Session, select
 
 from app.agents.branching import (
@@ -38,14 +38,36 @@ from app.capabilities.local_general_skill import (
 )
 from app.capability_scope import normalize_capability_scope
 from app.db import get_session
-from app.db.models import AgentResourceBinding, GeneralSkill, ModelConfig, User, utc_now
+from app.db.models import (
+    AgentResourceBinding,
+    GeneralSkill,
+    GeneralSkillRevision,
+    ModelConfig,
+    User,
+    utc_now,
+)
 from app.general_skills import (
     GeneralSkillClawHubImportRequest,
     GeneralSkillImportRequest,
+    GeneralSkillInstallPromptResponse,
     GeneralSkillPackageUploadRequest,
     GeneralSkillRead,
     GeneralSkillRunRequest,
     GeneralSkillRunResponse,
+    GeneralSkillRuntimeResponse,
+)
+from app.general_skills.access import (
+    can_read_full_body,
+    ensure_can_download,
+    ensure_can_invoke,
+    ensure_can_read_full_body,
+    normalize_access_level,
+)
+from app.general_skills.runtime import (
+    build_install_prompt_payload,
+    build_runtime_payload,
+    compute_package_digest,
+    find_skill_file,
 )
 from app.general_skills.runner import GeneralSkillReader, GeneralSkillRunner
 from app.general_skills.schema import GeneralSkillFile
@@ -99,9 +121,30 @@ def general_skill_read(row: GeneralSkill, status_override: str | None = None) ->
         capability_scope=normalize_capability_scope(row.capability_scope),
         permissions=row.permissions_json or {},
         runtime_config=row.runtime_config_json or {},
+        access_level=normalize_access_level(getattr(row, "access_level", None)),
+        version=(getattr(row, "version", None) or "0.1.0"),
+        package_digest=getattr(row, "package_digest", None) or compute_package_digest(row),
+        author_user_id=getattr(row, "author_user_id", None),
+        source=getattr(row, "source", None) or "local",
+        is_highlighted=bool(getattr(row, "is_highlighted", False)),
+        category_id=getattr(row, "category_id", None),
+        download_count=int(getattr(row, "download_count", 0) or 0),
+        invoke_count=int(getattr(row, "invoke_count", 0) or 0),
+        star_count=int(getattr(row, "star_count", 0) or 0),
+        secure_content_enabled=bool(getattr(row, "secure_content_enabled", True)),
+        allow_local_download=bool(getattr(row, "allow_local_download", True)),
         created_at=row.created_at.isoformat(),
         updated_at=row.updated_at.isoformat(),
     )
+
+
+def _public_api_base(request: Request) -> str:
+    from app.config import get_settings
+
+    configured = (get_settings().base_url or "").strip().rstrip("/")
+    if configured:
+        return configured
+    return str(request.base_url).rstrip("/")
 
 
 @router.post("/import", response_model=GeneralSkillRead)
@@ -298,6 +341,10 @@ def import_skillhub_skill(
         homepage=request.homepage,
         capability_scope=request.capability_scope,
         current_user=current_user,
+        access_level=request.access_level,
+        category_id=request.category_id,
+        version=request.version,
+        source="external",
     )
 
 
@@ -349,6 +396,11 @@ def import_general_skill_package(
         homepage=request.homepage,
         capability_scope=request.capability_scope,
         current_user=current_user,
+        access_level=request.access_level,
+        category_id=request.category_id,
+        version=request.version,
+        source=request.source or "local",
+        changelog=request.changelog,
     )
 
 
@@ -366,6 +418,11 @@ def _create_imported_general_skill(
     homepage: str | None = None,
     capability_scope: str = "general",
     current_user: object | None = None,
+    access_level: str = "L1",
+    category_id: str | None = None,
+    version: str | None = None,
+    source: str | None = "local",
+    changelog: str | None = None,
 ) -> GeneralSkillRead:
     markdown = _skill_markdown_from_files(files)
     metadata = _parse_skill_metadata(markdown)
@@ -394,6 +451,8 @@ def _create_imported_general_skill(
     now = utc_now()
     resolved_agent_id = _agent_id_or_none(agent_id)
     agent = ensure_agent_scope_manager(db, tenant_id, resolved_agent_id, current_user)
+    level = normalize_access_level(access_level)
+    author_id = getattr(current_user, "id", None) if current_user is not None else None
     row = GeneralSkill(
         tenant_id=tenant_id,
         slug=resolved_slug,
@@ -409,6 +468,13 @@ def _create_imported_general_skill(
         capability_scope=normalize_capability_scope(capability_scope),
         permissions_json={"network": True, "python": True},
         runtime_config_json={"runtime": "python", "timeout_seconds": 12},
+        access_level=level,
+        version=(version or "1.0.0").strip() or "1.0.0",
+        author_user_id=author_id if isinstance(author_id, str) else None,
+        source=(source or "local").strip() or "local",
+        category_id=category_id,
+        allow_local_download=level != "L3",
+        secure_content_enabled=True,
         created_at=now,
         updated_at=now,
     )
@@ -439,6 +505,20 @@ def _create_imported_general_skill(
             "active" if status == "published" else "inactive",
             metadata_json=row.metadata_json or {},
         )
+    row.package_digest = compute_package_digest(row)
+    db.add(
+        GeneralSkillRevision(
+            tenant_id=tenant_id,
+            skill_id=row.id,
+            version=row.version,
+            changelog=(changelog or "").strip() or "初始导入",
+            skill_markdown=row.skill_markdown,
+            skill_files_json=list(row.skill_files_json or []),
+            package_digest=row.package_digest,
+            file_size=len((row.skill_markdown or "").encode("utf-8")),
+            created_by=row.author_user_id,
+        )
+    )
     db.commit()
     db.refresh(row)
     return general_skill_read(row)
@@ -503,6 +583,139 @@ def list_general_skills(
     ).all()
     rows = [row for row in rows if is_open_gallery_resource(db, tenant_id, "general_skill", row)]
     return [general_skill_read(row) for row in rows]
+
+
+@router.get("/{slug}/runtime", response_model=GeneralSkillRuntimeResponse)
+def get_general_skill_runtime(
+    slug: str,
+    request: Request,
+    tenant_id: str = Query(...),
+    intent: str = Query("install"),
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> GeneralSkillRuntimeResponse:
+    row = _get_general_skill(db, tenant_id, slug)
+    if row.status != "published":
+        raise HTTPException(status_code=404, detail="General skill not found")
+    ensure_can_invoke(db, current_user, row)
+    normalized_intent = "invoke" if intent.strip().lower() == "invoke" else "install"
+    include_full = can_read_full_body(db, current_user, row)
+    payload = build_runtime_payload(
+        skill=row,
+        intent=normalized_intent,  # type: ignore[arg-type]
+        api_base=_public_api_base(request),
+        include_full_body=include_full,
+    )
+    dirty = False
+    if not getattr(row, "package_digest", None):
+        row.package_digest = payload["package_digest"]
+        dirty = True
+    if normalized_intent == "invoke":
+        row.invoke_count = int(getattr(row, "invoke_count", 0) or 0) + 1
+        dirty = True
+    if dirty:
+        row.updated_at = utc_now()
+        db.add(row)
+        db.commit()
+    return GeneralSkillRuntimeResponse.model_validate(payload)
+
+
+@router.get("/{slug}/install-prompt", response_model=GeneralSkillInstallPromptResponse)
+def get_general_skill_install_prompt(
+    slug: str,
+    request: Request,
+    tenant_id: str = Query(...),
+    platform: str = Query("cursor"),
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> GeneralSkillInstallPromptResponse:
+    row = _get_general_skill(db, tenant_id, slug)
+    if row.status != "published":
+        raise HTTPException(status_code=404, detail="General skill not found")
+    ensure_can_invoke(db, current_user, row)
+    payload = build_install_prompt_payload(
+        skill=row,
+        platform=platform,
+        api_base=_public_api_base(request),
+    )
+    return GeneralSkillInstallPromptResponse.model_validate(payload)
+
+
+@router.get("/{slug}/files/{file_path:path}")
+def get_general_skill_package_file(
+    slug: str,
+    file_path: str,
+    tenant_id: str = Query(...),
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    row = _get_general_skill(db, tenant_id, slug)
+    if row.status != "published":
+        raise HTTPException(status_code=404, detail="General skill not found")
+    ensure_can_invoke(db, current_user, row)
+    item = find_skill_file(row, unquote(file_path))
+    if not item:
+        raise HTTPException(status_code=404, detail="Skill file not found")
+    content = item.get("content")
+    if not isinstance(content, str):
+        raise HTTPException(status_code=404, detail="Skill file content unavailable")
+    media_type = str(item.get("mime_type") or "text/plain; charset=utf-8")
+    return Response(content=content, media_type=media_type)
+
+
+@router.get("/{slug}/skill-md", response_class=PlainTextResponse)
+def get_general_skill_markdown(
+    slug: str,
+    tenant_id: str = Query(...),
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    row = _get_general_skill(db, tenant_id, slug)
+    if row.status != "published":
+        raise HTTPException(status_code=404, detail="General skill not found")
+    ensure_can_read_full_body(db, current_user, row)
+    return PlainTextResponse(
+        content=row.skill_markdown or "",
+        media_type="text/markdown; charset=utf-8",
+    )
+
+
+@router.get("/{slug}/download")
+def download_general_skill_zip(
+    slug: str,
+    tenant_id: str = Query(...),
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    row = _get_general_skill(db, tenant_id, slug)
+    if row.status != "published":
+        raise HTTPException(status_code=404, detail="General skill not found")
+    ensure_can_download(db, current_user, row)
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        files = _skill_files_or_markdown(row)
+        wrote = False
+        for item in files:
+            path = str(item.get("path") or "").lstrip("/")
+            content = item.get("content")
+            if not path or ".." in path.split("/") or not isinstance(content, str):
+                continue
+            archive.writestr(f"{row.slug}/{path}", content.encode("utf-8"))
+            wrote = True
+        if not wrote:
+            archive.writestr(
+                f"{row.slug}/SKILL.md",
+                (row.skill_markdown or "").encode("utf-8"),
+            )
+    row.download_count = int(getattr(row, "download_count", 0) or 0) + 1
+    row.updated_at = utc_now()
+    db.add(row)
+    db.commit()
+    payload = buffer.getvalue()
+    headers = {
+        "Content-Disposition": f'attachment; filename="{row.slug}.zip"',
+    }
+    return Response(content=payload, media_type="application/zip", headers=headers)
 
 
 @router.get(
@@ -570,7 +783,7 @@ def archive_general_skill(
     agent_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ) -> GeneralSkillRead:
-    row = _get_general_skill(db, tenant_id, slug)
+    row = _get_general_skill(db, tenant_id, slug, allow_archived=True)
     agent_id = _agent_id_or_none(agent_id)
     agent = ensure_agent_scope_manager(db, tenant_id, agent_id, current_user)
     if agent and not agent.is_overall:
@@ -671,8 +884,13 @@ def run_general_skill(
     skill = _get_general_skill(db, request.tenant_id, slug)
     if skill.status != "published":
         raise HTTPException(status_code=400, detail="General skill is not published")
+    ensure_can_invoke(db, current_user, skill)
     require_agent_scope_viewer(request.tenant_id, request.agent_id, current_user, db)
     _ensure_general_skill_visible(db, request.tenant_id, skill, request.agent_id)
+    skill.invoke_count = int(getattr(skill, "invoke_count", 0) or 0) + 1
+    skill.updated_at = utc_now()
+    db.add(skill)
+    db.commit()
     model_config = _get_request_model(db, request.tenant_id, request.model_config_id)
     skill_snapshot = _general_skill_snapshot(skill)
     return _run_general_skill_operation(
@@ -693,8 +911,13 @@ def run_general_skill_stream(
     skill = _get_general_skill(db, request.tenant_id, slug)
     if skill.status != "published":
         raise HTTPException(status_code=400, detail="General skill is not published")
+    ensure_can_invoke(db, current_user, skill)
     require_agent_scope_viewer(request.tenant_id, request.agent_id, current_user, db)
     _ensure_general_skill_visible(db, request.tenant_id, skill, request.agent_id)
+    skill.invoke_count = int(getattr(skill, "invoke_count", 0) or 0) + 1
+    skill.updated_at = utc_now()
+    db.add(skill)
+    db.commit()
     model_config = _get_request_model(db, request.tenant_id, request.model_config_id)
     skill_snapshot = _general_skill_snapshot(skill)
     model_snapshot = model_config
@@ -780,13 +1003,17 @@ def _run_general_skill_operation(
     )
 
 
-def _get_general_skill(db: Session, tenant_id: str, slug: str) -> GeneralSkill:
+def _get_general_skill(
+    db: Session, tenant_id: str, slug: str, *, allow_archived: bool = False
+) -> GeneralSkill:
     ensure_tenant(db, tenant_id)
     row = db.exec(
         select(GeneralSkill).where(GeneralSkill.tenant_id == tenant_id, GeneralSkill.slug == slug)
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="General skill not found")
+    if not allow_archived and row.status == "archived":
+        raise HTTPException(status_code=410, detail="General skill archived")
     return row
 
 
@@ -1473,7 +1700,7 @@ def _is_clawhub_download_url(parsed) -> bool:
 
 def _download_url(url: str) -> tuple[bytes, str]:
     try:
-        request = Request(url, headers={"User-Agent": "StaffDeck-GeneralSkillImporter/1.0"})
+        request = UrlRequest(url, headers={"User-Agent": "StaffDeck-GeneralSkillImporter/1.0"})
         with urlopen(request, timeout=REMOTE_SKILL_DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310 - user-confirmed import source
             content_type = response.headers.get("content-type", "")
             data = response.read(MAX_CLAWHUB_PACKAGE_BYTES + 1)

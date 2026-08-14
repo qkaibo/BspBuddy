@@ -10,11 +10,13 @@ from app.agents.branching import ensure_open_gallery_binding
 from app.config import get_settings
 from app.db.models import (
     AgentProfile,
+    AgentResourceBinding,
     GeneralSkill,
     MCPServer,
     ModelConfig,
     PersonaConfig,
     Skill,
+    SkillCategory,
     Tenant,
     Tool,
     User,
@@ -948,6 +950,10 @@ def seed_demo_data(session: Session) -> None:
 
     _seed_mcp_servers(session)
     _seed_weather_general_skill(session)
+    _seed_mcp_reply_citation_skill(session)
+    _seed_skill_categories(session)
+    _seed_demo_store_general_skills(session)
+    _backfill_general_skill_store_fields(session)
     session.flush()
     _publish_seeded_system_resources(session)
     seed_staffdeck_admin_gallery(session)
@@ -1025,20 +1031,22 @@ def _publish_seeded_system_resources(session: Session) -> None:
             metadata_json=creator_metadata,
         )
 
-    weather = session.exec(
-        select(GeneralSkill).where(
-            GeneralSkill.tenant_id == tenant_id, GeneralSkill.slug == "weather-zh"
-        )
-    ).first()
-    if weather:
-        weather.metadata_json = _system_seed_metadata(weather.metadata_json or {})
-        session.add(weather)
+    for slug in ("weather-zh", "mcp-reply-citation"):
+        skill = session.exec(
+            select(GeneralSkill).where(
+                GeneralSkill.tenant_id == tenant_id, GeneralSkill.slug == slug
+            )
+        ).first()
+        if not skill:
+            continue
+        skill.metadata_json = _system_seed_metadata(skill.metadata_json or {})
+        session.add(skill)
         ensure_open_gallery_binding(
             session,
             tenant_id,
             "general_skill",
-            weather.id,
-            "active" if weather.status == "published" else "inactive",
+            skill.id,
+            "active" if skill.status == "published" else "inactive",
             metadata_json=creator_metadata,
         )
 
@@ -1208,6 +1216,376 @@ def _collect_general_skill_folder(folder: Path) -> list[dict[str, object]]:
             }
         )
     return files
+
+
+def _seed_mcp_reply_citation_skill(session: Session) -> None:
+    """Instruction-only skill: cite MCP server/tool after MCP queries."""
+    folder = paths.app_root() / "skills" / "mcp-reply-citation"
+    skill_file = folder / "SKILL.md"
+    if not skill_file.exists():
+        return
+    try:
+        markdown = skill_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    if not markdown:
+        return
+
+    slug = "mcp-reply-citation"
+    package_files = _collect_general_skill_folder(folder)
+    existing = session.exec(
+        select(GeneralSkill).where(
+            GeneralSkill.tenant_id == "tenant_demo",
+            GeneralSkill.slug == slug,
+        )
+    ).first()
+    if existing:
+        existing.name = "MCP 回复引用规范"
+        existing.description = (
+            "MCP citation skill：调用 MCP 后正文须含 path/行号/摘录，"
+            "文末标注「本次调用 MCP：服务器名 / 工具名」。指令型，无脚本。"
+        )
+        existing.skill_markdown = markdown
+        existing.skill_files_json = package_files
+        existing.status = "published"
+        existing.capability_scope = "general"
+        existing.permissions_json = {}
+        existing.runtime_config_json = {"runtime": "none", "timeout_seconds": 0}
+        existing.metadata_json = {
+            **dict(existing.metadata_json or {}),
+            "source": "builtin",
+            "kind": "instruction_only",
+        }
+        existing.access_level = "L1"
+        existing.version = "1.0.0"
+        existing.source = "enterprise"
+        existing.is_highlighted = True
+        existing.allow_local_download = True
+        existing.secure_content_enabled = True
+        existing.updated_at = utc_now()
+        session.add(existing)
+        skill_row = existing
+    else:
+        skill_row = GeneralSkill(
+            tenant_id="tenant_demo",
+            slug=slug,
+            name="MCP 回复引用规范",
+            description=(
+                "MCP citation skill：调用 MCP 后正文须含 path/行号/摘录，"
+                "文末标注「本次调用 MCP：服务器名 / 工具名」。指令型，无脚本。"
+            ),
+            skill_markdown=markdown,
+            skill_files_json=package_files,
+            metadata_json={"source": "builtin", "kind": "instruction_only"},
+            status="published",
+            capability_scope="general",
+            permissions_json={},
+            runtime_config_json={"runtime": "none", "timeout_seconds": 0},
+            access_level="L1",
+            version="1.0.0",
+            source="enterprise",
+            is_highlighted=True,
+            allow_local_download=True,
+            secure_content_enabled=True,
+        )
+        session.add(skill_row)
+        session.flush()
+
+    # Visible in SkillsPanel via GENERAL_SKILL_LIST (open-gallery filter).
+    skill_row.metadata_json = _system_seed_metadata(
+        {**(skill_row.metadata_json or {}), "kind": "instruction_only", "source": "builtin"}
+    )
+    session.add(skill_row)
+    ensure_open_gallery_binding(
+        session,
+        "tenant_demo",
+        "general_skill",
+        skill_row.id,
+        "active" if skill_row.status == "published" else "inactive",
+        metadata_json=_system_seed_metadata(),
+    )
+
+    # Auto-install onto every agent that already has an active MCP binding.
+    mcp_agent_ids = {
+        row.agent_id
+        for row in session.exec(
+            select(AgentResourceBinding).where(
+                AgentResourceBinding.tenant_id == "tenant_demo",
+                AgentResourceBinding.resource_type == "mcp",
+                AgentResourceBinding.status == "active",
+            )
+        ).all()
+        if row.agent_id
+    }
+    for agent_id in mcp_agent_ids:
+        bound = session.exec(
+            select(AgentResourceBinding).where(
+                AgentResourceBinding.tenant_id == "tenant_demo",
+                AgentResourceBinding.agent_id == agent_id,
+                AgentResourceBinding.resource_type == "general_skill",
+                AgentResourceBinding.resource_id == skill_row.id,
+            )
+        ).first()
+        if bound:
+            if bound.status != "active":
+                bound.status = "active"
+                bound.updated_at = utc_now()
+                session.add(bound)
+            continue
+        session.add(
+            AgentResourceBinding(
+                tenant_id="tenant_demo",
+                agent_id=agent_id,
+                resource_type="general_skill",
+                resource_id=skill_row.id,
+                status="active",
+                metadata_json={"slug": slug, "auto_bound": "mcp_reply_citation"},
+            )
+        )
+
+
+def _seed_skill_categories(session: Session) -> None:
+    tenant_id = "tenant_demo"
+    defaults = [
+        ("通用类", 10),
+        ("研发类", 20),
+        ("测试类", 30),
+        ("产品类", 40),
+        ("管理类", 50),
+    ]
+    existing = {
+        row.name: row
+        for row in session.exec(
+            select(SkillCategory).where(SkillCategory.tenant_id == tenant_id)
+        ).all()
+    }
+    for name, sort_order in defaults:
+        row = existing.get(name)
+        if row:
+            if row.sort_order != sort_order:
+                row.sort_order = sort_order
+                row.updated_at = utc_now()
+                session.add(row)
+            continue
+        session.add(
+            SkillCategory(
+                tenant_id=tenant_id,
+                name=name,
+                sort_order=sort_order,
+            )
+        )
+
+
+def _category_id_by_name(session: Session, tenant_id: str, name: str) -> str | None:
+    row = session.exec(
+        select(SkillCategory).where(
+            SkillCategory.tenant_id == tenant_id,
+            SkillCategory.name == name,
+        )
+    ).first()
+    return row.id if row else None
+
+
+def _upsert_builtin_general_skill(
+    session: Session,
+    *,
+    slug: str,
+    name: str,
+    description: str,
+    folder: Path,
+    category_name: str,
+    highlighted: bool = False,
+) -> None:
+    tenant_id = "tenant_demo"
+    if not (folder / "SKILL.md").exists():
+        return
+    package_files = _collect_general_skill_folder(folder)
+    markdown = next(
+        (
+            str(item.get("content") or "")
+            for item in package_files
+            if str(item.get("path") or "").lower() == "skill.md"
+        ),
+        "",
+    ).strip()
+    if not markdown:
+        return
+    category_id = _category_id_by_name(session, tenant_id, category_name)
+    existing = session.exec(
+        select(GeneralSkill).where(
+            GeneralSkill.tenant_id == tenant_id,
+            GeneralSkill.slug == slug,
+        )
+    ).first()
+    if existing:
+        existing.name = name
+        existing.description = description
+        existing.skill_markdown = markdown
+        existing.skill_files_json = package_files
+        existing.status = "published"
+        existing.capability_scope = "general"
+        existing.source = "enterprise"
+        existing.version = "1.0.0"
+        existing.access_level = "L1"
+        existing.is_highlighted = highlighted
+        existing.category_id = category_id
+        existing.secure_content_enabled = True
+        existing.allow_local_download = True
+        if not getattr(existing, "author_user_id", None):
+            existing.author_user_id = "admin"
+        existing.metadata_json = {
+            **dict(existing.metadata_json or {}),
+            "source": "builtin",
+            "kind": "instruction_only",
+        }
+        existing.updated_at = utc_now()
+        session.add(existing)
+        skill_row = existing
+    else:
+        skill_row = GeneralSkill(
+            tenant_id=tenant_id,
+            slug=slug,
+            name=name,
+            description=description,
+            skill_markdown=markdown,
+            skill_files_json=package_files,
+            metadata_json={"source": "builtin", "kind": "instruction_only"},
+            status="published",
+            capability_scope="general",
+            permissions_json={},
+            runtime_config_json={"runtime": "none", "timeout_seconds": 0},
+            access_level="L1",
+            version="1.0.0",
+            source="enterprise",
+            is_highlighted=highlighted,
+            category_id=category_id,
+            author_user_id="admin",
+            secure_content_enabled=True,
+            allow_local_download=True,
+        )
+        session.add(skill_row)
+        session.flush()
+
+    skill_row.metadata_json = _system_seed_metadata(
+        {**(skill_row.metadata_json or {}), "kind": "instruction_only", "source": "builtin"}
+    )
+    session.add(skill_row)
+    ensure_open_gallery_binding(
+        session,
+        tenant_id,
+        "general_skill",
+        skill_row.id,
+        "active",
+        metadata_json=_system_seed_metadata(),
+    )
+
+
+def _seed_demo_store_general_skills(session: Session) -> None:
+    root = paths.app_root() / "skills"
+    _upsert_builtin_general_skill(
+        session,
+        slug="demo-hello",
+        name="Demo Hello",
+        description="演示技能：友好打招呼并复述用户目标，用于验证商店与 runtime。",
+        folder=root / "demo-hello",
+        category_name="通用类",
+        highlighted=True,
+    )
+    _upsert_builtin_general_skill(
+        session,
+        slug="demo-checklist",
+        name="Demo Checklist",
+        description="演示技能：把目标拆成 3～5 条检查清单，用于验证一键安装。",
+        folder=root / "demo-checklist",
+        category_name="研发类",
+        highlighted=True,
+    )
+
+
+def _backfill_general_skill_store_fields(session: Session) -> None:
+    general_id = _category_id_by_name(session, "tenant_demo", "通用类")
+    for skill in session.exec(
+        select(GeneralSkill).where(GeneralSkill.tenant_id == "tenant_demo")
+    ).all():
+        changed = False
+        if not getattr(skill, "access_level", None):
+            skill.access_level = "L1"
+            changed = True
+        if not getattr(skill, "version", None):
+            skill.version = "0.1.0"
+            changed = True
+        if not getattr(skill, "source", None):
+            meta_source = str((skill.metadata_json or {}).get("source") or "")
+            skill.source = "enterprise" if meta_source in {"builtin", "system"} else "local"
+            changed = True
+        if skill.category_id is None and general_id:
+            skill.category_id = general_id
+            changed = True
+        if not getattr(skill, "author_user_id", None):
+            skill.author_user_id = "admin"
+            changed = True
+        if skill.access_level == "L3" and getattr(skill, "allow_local_download", True):
+            skill.allow_local_download = False
+            changed = True
+        if changed:
+            skill.updated_at = utc_now()
+            session.add(skill)
+
+    # 演示热度：差异化非零计数，避免排行榜全 0
+    demo_stats = {
+        "demo-hello": (42, 128, 9),
+        "demo-checklist": (31, 76, 5),
+        "text-translation": (24, 55, 7),
+        "log-analysis": (18, 90, 4),
+        "contract-term-extraction": (12, 33, 2),
+        "bill-field-extract": (8, 21, 1),
+        "data-statistical-analysis": (15, 40, 3),
+        "diagnostic-script-execution": (6, 17, 1),
+    }
+    for slug, (downloads, invokes, stars) in demo_stats.items():
+        skill = session.exec(
+            select(GeneralSkill).where(
+                GeneralSkill.tenant_id == "tenant_demo",
+                GeneralSkill.slug == slug,
+            )
+        ).first()
+        if not skill:
+            continue
+        # 仅在仍为 0（未产生真实事件）时写入演示值，避免覆盖真实计数
+        if (
+            int(getattr(skill, "download_count", 0) or 0) == 0
+            and int(getattr(skill, "invoke_count", 0) or 0) == 0
+            and int(getattr(skill, "star_count", 0) or 0) == 0
+        ):
+            skill.download_count = downloads
+            skill.invoke_count = invokes
+            skill.star_count = stars
+            skill.updated_at = utc_now()
+            session.add(skill)
+
+    # 上传者榜演示：至少 2 名作者（admin 多数 + user_demo 若干）
+    member = session.exec(
+        select(User).where(User.tenant_id == "tenant_demo", User.username == "user_demo")
+    ).first()
+    member_id = member.id if member else "user_demo"
+    for slug in (
+        "text-translation",
+        "log-analysis",
+        "bill-field-extract",
+        "contract-term-extraction",
+    ):
+        skill = session.exec(
+            select(GeneralSkill).where(
+                GeneralSkill.tenant_id == "tenant_demo",
+                GeneralSkill.slug == slug,
+            )
+        ).first()
+        if not skill:
+            continue
+        if getattr(skill, "author_user_id", None) in {None, "", "admin"}:
+            skill.author_user_id = member_id
+            skill.updated_at = utc_now()
+            session.add(skill)
 
 
 def _sync_demo_skill_if_stale(existing: Skill, desired: dict) -> None:

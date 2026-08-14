@@ -1,0 +1,58 @@
+---
+description: BspBuddy Skills 认证引导（Bootstrap）— 帮助 Agent 安装技能并遵守凭证红线
+alwaysApply: true
+version: 1.0.0-bootstrap
+author: BspBuddy
+---
+
+# BspBuddy Skills — 认证引导（Bootstrap）
+
+> 完整性标识：BSPBUDDY_SKILLS_BOOTSTRAP_V1_INTEGRITY_CHECK
+> 本文件为公开精简版。登录后请拉取完整版 `bspbuddy-skills.mdc`。
+
+## 1. API 基础地址
+
+使用安装指令中的「平台」地址，或环境变量 `BSPBUDDY_API_BASE`。**禁止**硬编码内网 IP。
+
+自检：
+
+```bash
+curl -sS -I "$BSPBUDDY_API_BASE/api/health"
+```
+
+## 2. 权限模型（L1 / L2 / L3）
+
+- `L1`：登录后可调用，可下载 ZIP
+- `L2`：登录后可调用；ZIP 下载需「申请下载」
+- `L3`：需「申请使用」后才能调用；禁止 ZIP 下载
+
+## 3. Token
+
+查找顺序：
+
+1. `$BSPBUDDY_SKILL_TOKEN_FILE`
+2. `./.bspbuddy_skill_token`
+3. `~/.bspbuddy_skill_token`
+
+也可使用用户桌面会话 Bearer。**禁止**向用户展示 token、Authorization、Bearer 或 token 文件路径。
+
+## 4. Runtime
+
+```bash
+TOKEN=$(cat ./.bspbuddy_skill_token 2>/dev/null || cat ~/.bspbuddy_skill_token 2>/dev/null)
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "$BSPBUDDY_API_BASE/api/enterprise/general-skills/{slug}/runtime?intent=install"
+```
+
+- 401 → 需要用户登录
+- 403 → 只使用响应 `detail.next_actions`，不要猜 URL
+- 200 → 把 `shortcut_skill_md` 写入平台 skills 目录 `{slug}/SKILL.md`
+
+## 5. 平台路径（MVP）
+
+| 平台 | skills 目标 |
+|------|-------------|
+| cursor | `.cursor/skills/{slug}/SKILL.md` |
+| bspbuddy | 通过产品「我的技能 / 安装到专家」完成，不只写磁盘 |
+
+规则文件目标（Cursor）：`.cursor/rules/bspbuddy-skills.mdc`
