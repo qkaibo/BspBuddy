@@ -6,6 +6,7 @@ import type { Plugin, PluginMarket, PluginType } from '../lib/plugin-types'
 import { MCPConfigPanel } from './MCPConfigPanel'
 import { SopWorkbench } from './SopWorkbench'
 import { SkillsPanel } from './SkillsPanel'
+import { SkillStorePanel } from './SkillStorePanel'
 import { McpPanel } from './McpPanel'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PanelChrome } from './ui/PanelChrome'
@@ -20,7 +21,7 @@ const TYPE_LABELS: Record<PluginType, string> = {
   rule: '规则',
 }
 
-type PanelTab = 'installed' | 'market' | 'skills' | 'general-skills' | 'mcp' | 'knowledge'
+type PanelTab = 'installed' | 'market' | 'skills' | 'general-skills' | 'skill-store' | 'mcp' | 'knowledge'
 
 interface Props {
   onClose: () => void
@@ -133,6 +134,7 @@ export function PluginPanel({ onClose, workspacePath: _workspacePath, initialTab
     { id: 'market', label: '插件市场' },
     { id: 'skills', label: 'SOP' },
     { id: 'general-skills', label: '通用技能' },
+    { id: 'skill-store', label: '技能商店' },
     { id: 'mcp', label: 'MCP' },
     { id: 'knowledge', label: '知识库' },
   ]
@@ -162,6 +164,10 @@ export function PluginPanel({ onClose, workspacePath: _workspacePath, initialTab
   // General Skills tab — StaffDeck scope pattern (agents-002)
   if (activeTab === 'general-skills') {
     return renderChrome(<SkillsPanel />)
+  }
+
+  if (activeTab === 'skill-store') {
+    return renderChrome(<SkillStorePanel />)
   }
 
   if (activeTab === 'mcp') {
