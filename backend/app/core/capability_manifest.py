@@ -26,8 +26,10 @@ from app.db.models import (
     MCPServer,
     Skill,
     Tool,
+    utc_now,
 )
 from app.harness import build_file_tool_registry, register_command_tools
+from app.tools.mcp_client import MCPClientError, list_mcp_tools
 
 
 RESERVED_HARNESS_CAPABILITY_NAMES = {
@@ -209,7 +211,78 @@ class CapabilityManifestBuilder:
                         "sop_explicitly_allowed": explicitly_allowed,
                     },
                 )
-            )
+                )
+
+        # --- MCP 服务器工具 ---
+        if agent_id:
+            mcp_bindings = self.db.exec(
+                select(AgentResourceBinding).where(
+                    AgentResourceBinding.tenant_id == tenant_id,
+                    AgentResourceBinding.agent_id == agent_id,
+                    AgentResourceBinding.resource_type == "mcp",
+                    AgentResourceBinding.status == "active",
+                )
+            ).all()
+            for binding in mcp_bindings:
+                mcp_srv = self.db.get(MCPServer, binding.resource_id)
+                if not mcp_srv or mcp_srv.tenant_id != tenant_id or not mcp_srv.enabled:
+                    continue
+                scope = _scope(mcp_srv) or "general"
+                discovered = list(mcp_srv.discovered_tools_json or [])
+                if not discovered:
+                    should_refresh = True
+                    if mcp_srv.last_synced_at is not None:
+                        age = (utc_now() - mcp_srv.last_synced_at).total_seconds()
+                        should_refresh = age > 300
+                    if not should_refresh:
+                        unavailable.append(
+                            _unavailable(
+                                mcp_srv.id,
+                                mcp_srv.name,
+                                "tool",
+                                scope,
+                                "MCP 工具列表为空或最近发现失败（5 分钟内跳过重试）。",
+                            )
+                        )
+                        continue
+                    discovered, discover_error = _refresh_mcp_discovered_tools(
+                        self.db, mcp_srv
+                    )
+                    if discover_error:
+                        unavailable.append(
+                            _unavailable(
+                                mcp_srv.id,
+                                mcp_srv.name,
+                                "tool",
+                                scope,
+                                f"MCP 服务器不可用或工具发现失败：{discover_error}",
+                            )
+                        )
+                        continue
+                for tool_def in discovered:
+                    tool_name = tool_def.get("name", "unknown")
+                    description = tool_def.get("description", mcp_srv.description or mcp_srv.name)
+                    input_schema = tool_def.get("input_schema")
+                    if not isinstance(input_schema, dict) or not input_schema:
+                        input_schema = {"type": "object", "properties": {}}
+                    available.append(
+                        CapabilityDescriptor(
+                            capability_id=f"{mcp_srv.id}:{tool_name}",
+                            name=tool_name,
+                            kind="tool",
+                            capability_scope=scope,
+                            description=description,
+                            input_schema=input_schema,
+                            metadata={
+                                "provider": "mcp",
+                                "mcp_server_id": mcp_srv.id,
+                                "mcp_server_name": mcp_srv.name,
+                                "transport": mcp_srv.transport,
+                                "side_effect": "read_or_write",
+                                "sop_explicitly_allowed": True,
+                            },
+                        )
+                    )
 
         visible_knowledge = visible_knowledge_base_versions(
             self.db, tenant_id, agent_id, include_inactive=False
@@ -543,6 +616,70 @@ def _unavailable(
         available=False,
         unavailable_reason=reason,
     )
+
+
+def _refresh_mcp_discovered_tools(
+    db: Session, mcp_srv: MCPServer, *, timeout_seconds: float = 5.0
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Best-effort live discover when cache is empty. Persist on success."""
+    config: dict[str, Any] = {
+        "transport": mcp_srv.transport,
+        "url": mcp_srv.url,
+        "headers": dict(mcp_srv.headers_json or {}),
+        "command": mcp_srv.command,
+        "args": list(mcp_srv.args_json or []),
+        "env": dict(mcp_srv.env_json or {}),
+        "cwd": mcp_srv.cwd,
+    }
+    try:
+        tools = list_mcp_tools(config, timeout_seconds=timeout_seconds)
+    except MCPClientError as exc:
+        _touch_mcp_sync_timestamp(db, mcp_srv)
+        return [], str(exc)
+    except Exception as exc:  # noqa: BLE001 — surface as unavailable reason
+        _touch_mcp_sync_timestamp(db, mcp_srv)
+        return [], f"{type(exc).__name__}: {exc}"
+    normalized: list[dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        name = str(tool.get("name") or "").strip()
+        if not name:
+            continue
+        schema = tool.get("input_schema")
+        if not isinstance(schema, dict):
+            schema = tool.get("inputSchema")
+        if not isinstance(schema, dict):
+            schema = {"type": "object", "properties": {}}
+        normalized.append(
+            {
+                "name": name,
+                "description": tool.get("description") or mcp_srv.description or mcp_srv.name,
+                "input_schema": schema,
+            }
+        )
+    if not normalized:
+        _touch_mcp_sync_timestamp(db, mcp_srv)
+        return [], "MCP 服务器可达但未返回任何工具"
+    mcp_srv.discovered_tools_json = normalized
+    mcp_srv.last_synced_at = utc_now()
+    mcp_srv.updated_at = utc_now()
+    db.add(mcp_srv)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+    return normalized, None
+
+
+def _touch_mcp_sync_timestamp(db: Session, mcp_srv: MCPServer) -> None:
+    mcp_srv.last_synced_at = utc_now()
+    mcp_srv.updated_at = utc_now()
+    db.add(mcp_srv)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _explicit_reason(row: object | None, tenant_id: str) -> str:

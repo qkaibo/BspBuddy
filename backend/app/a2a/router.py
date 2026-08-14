@@ -7,7 +7,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import queue
+import threading
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
@@ -28,7 +31,7 @@ from app.api.chat import (
     _ensure_chat_agent_available,
 )
 from app.core import AgentLoop
-from app.db.database import get_session
+from app.db.database import engine, get_session
 from app.db.models import AgentProfile, ChatSession, User
 from app.session.session_schema import ChatTurnRequest
 
@@ -47,12 +50,15 @@ def _get_active_agents(db: Session, tenant_id: str) -> list[AgentProfile]:
 
 
 def _extract_text(request: A2ATaskRequest) -> str:
-    """Extract plain text from A2A message parts."""
+    parts = request.message.parts if request.message else []
     texts: list[str] = []
-    for part in request.message.parts:
-        if part.text:
-            texts.append(part.text)
-    return "\n".join(texts)
+    for part in parts:
+        text = getattr(part, "text", None)
+        if text:
+            texts.append(str(text))
+        elif isinstance(part, dict) and part.get("text"):
+            texts.append(str(part["text"]))
+    return "\n".join(texts).strip()
 
 
 def _format_sse(event_type: str, data: dict | str) -> str:
@@ -61,26 +67,21 @@ def _format_sse(event_type: str, data: dict | str) -> str:
     return f"event: {event_type}\ndata: {payload}\n\n"
 
 
-# ── Agent Card endpoints ──────────────────────────────────────────────────
-
 @router.get("/agents", response_model=A2AAgentListResponse)
-def list_agents(
+def list_a2a_agents(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_session)],
 ) -> A2AAgentListResponse:
-    """List all online agents as A2A Agent Cards."""
     agents = _get_active_agents(db, current_user.tenant_id)
-    cards = build_agent_cards(db, agents)
-    return A2AAgentListResponse(agents=cards)
+    return A2AAgentListResponse(agents=build_agent_cards(db, agents))
 
 
 @router.get("/agents/{agent_id}", response_model=A2AAgentCard)
-def get_agent_card(
+def get_a2a_agent(
     agent_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_session)],
 ) -> A2AAgentCard:
-    """Get a single agent's A2A Agent Card."""
     agent = db.get(AgentProfile, agent_id)
     if not agent or agent.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -89,10 +90,8 @@ def get_agent_card(
     return build_agent_card(db, agent)
 
 
-# ── Task delegation endpoint ──────────────────────────────────────────────
-
 @router.post("/agents/{agent_id}/tasks")
-async def delegate_task(
+async def create_a2a_task(
     agent_id: str,
     request: A2ATaskRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -133,17 +132,54 @@ async def delegate_task(
     if not turn_request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    # Create the SSE generator
-    async def event_stream() -> AsyncGenerator[str, None]:
-        yield _format_sse("status", {"state": "working", "message": f"正在委托 {agent.name} 专家处理..."})
+    agent_name = agent.name
 
-        try:
-            agent_loop = AgentLoop(db)
-            for event in agent_loop.handle_turn_stream(turn_request):
-                event_type = event.get("type", "unknown")
-                yield _format_sse(event_type, event)
-        except Exception as exc:
-            yield _format_sse("error", {"message": str(exc)})
+    async def event_stream() -> AsyncGenerator[str, None]:
+        yield _format_sse(
+            "status",
+            {"state": "working", "message": f"正在委托 {agent_name} 专家处理..."},
+        )
+
+        # Producer owns its own DB session and pushes events onto a thread-safe
+        # queue so this async generator never blocks the FastAPI event loop on
+        # handle_turn / LLM work.
+        event_q: queue.Queue[dict | None] = queue.Queue()
+
+        def produce() -> None:
+            try:
+                with Session(engine) as worker_db:
+                    for event in AgentLoop(worker_db).handle_turn_stream(turn_request):
+                        event_q.put(event)
+            except Exception as exc:  # noqa: BLE001 — surface on SSE
+                event_q.put(
+                    {
+                        "event": "error",
+                        "type": "error",
+                        "data": {"kind": "error", "message": str(exc)},
+                    }
+                )
+            finally:
+                event_q.put(None)
+
+        threading.Thread(
+            target=produce,
+            name=f"a2a-stream-{agent_id[:12]}",
+            daemon=True,
+        ).start()
+
+        loop = asyncio.get_running_loop()
+        while True:
+            event = await loop.run_in_executor(None, event_q.get)
+            if event is None:
+                break
+            event_type = (
+                event.get("event")
+                or event.get("type")
+                or "unknown"
+            )
+            yield _format_sse(str(event_type), event)
+            # Let other requests breathe between SSE frames.
+            await asyncio.sleep(0)
 
         yield _format_sse("final", {"state": "completed", "stopReason": "completed"})
 

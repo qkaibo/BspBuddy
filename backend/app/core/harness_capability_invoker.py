@@ -128,6 +128,9 @@ class HarnessCapabilityInvoker:
         # must inspect the frozen package before it can decide whether the
         # instructions are sufficient or executable code is actually needed.
         self._loaded_general_skill_ids: set[str] = set()
+        # Rebuild-once cache for mid-run authorization checks (same agent/skill/step).
+        self._authorized_manifest_cache: Any | None = None
+        self._authorized_manifest_failed = False
 
     def invoke(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         self._raise_if_cancelled()
@@ -170,7 +173,14 @@ class HarnessCapabilityInvoker:
             request_digest=_request_digest(name, arguments),
             logical_action_key=logical_action_key,
             status="started",
-            arguments_json=_audit_arguments(arguments),
+            arguments_json={
+                **_audit_arguments(arguments),
+                "_capability_kind": descriptor.kind,
+                "_provider": str(
+                    (descriptor.metadata or {}).get("provider")
+                    or descriptor.kind
+                ),
+            },
         )
         self.db.add(invocation)
         try:
@@ -315,14 +325,8 @@ class HarnessCapabilityInvoker:
         self,
         frozen: CapabilityDescriptor,
     ) -> CapabilityDescriptor | None:
-        try:
-            current = CapabilityManifestBuilder(self.db).build(
-                self.tenant_id,
-                self.agent_id,
-                self.active_skill,
-                self.active_step_id,
-            )
-        except CapabilityAuthorizationError:
+        current = self._authorized_manifest()
+        if current is None:
             return None
         return next(
             (
@@ -335,6 +339,23 @@ class HarnessCapabilityInvoker:
             ),
             None,
         )
+
+    def _authorized_manifest(self) -> Any | None:
+        if self._authorized_manifest_failed:
+            return None
+        if self._authorized_manifest_cache is not None:
+            return self._authorized_manifest_cache
+        try:
+            self._authorized_manifest_cache = CapabilityManifestBuilder(self.db).build(
+                self.tenant_id,
+                self.agent_id,
+                self.active_skill,
+                self.active_step_id,
+            )
+        except CapabilityAuthorizationError:
+            self._authorized_manifest_failed = True
+            return None
+        return self._authorized_manifest_cache
 
     def _invoke_file(
         self,
@@ -744,6 +765,35 @@ class HarnessCapabilityInvoker:
         name: str,
         arguments: dict[str, Any],
     ) -> dict[str, Any]:
+        # ── MCP 工具（来自 MCPServer.discovered_tools_json）──
+        if metadata.get("provider") == "mcp":
+            from app.db.models import MCPServer
+            from app.tools.mcp_client import execute_mcp_tool
+            mcp_server_id = str(metadata.get("mcp_server_id") or "")
+            if not mcp_server_id:
+                return _failure("TOOL_NOT_AVAILABLE", "MCP 服务 ID 缺失。")
+            mcp_srv = self.db.get(MCPServer, mcp_server_id)
+            if (
+                mcp_srv is None
+                or mcp_srv.tenant_id != self.tenant_id
+                or not mcp_srv.enabled
+            ):
+                return _failure("TOOL_NOT_AVAILABLE", "MCP 服务不可用或已禁用。")
+            config = {
+                "transport": mcp_srv.transport,
+                "url": mcp_srv.url,
+                "headers": dict(mcp_srv.headers_json or {}),
+            }
+            try:
+                result = execute_mcp_tool(
+                    config, arguments, timeout_seconds=30, tool_name=name,
+                )
+                if isinstance(result, dict) and "content" in result:
+                    return {"success": True, "result": result}
+                return {"success": True, "result": {"response": result}}
+            except Exception as exc:
+                return _failure("MCP_TOOL_ERROR", str(exc))
+        # ── 原有 Tool 表工具 ──
         source_tool_name = str(
             metadata.get("source_tool_name") or name
         ).strip()

@@ -1,21 +1,29 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sqlmodel import Session
 
 from app.db.models import AgentEvent
 
+LiveSink = Callable[[str, dict[str, Any]], None]
+
 
 class EventLog:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, live_sink: LiveSink | None = None):
         self.db = db
         self._turn_id: str | None = None
         self._client_turn_id: str | None = None
+        self._live_sink: LiveSink | None = live_sink
 
     def bind_turn(self, turn_id: str, client_turn_id: str | None = None) -> None:
         self._turn_id = str(turn_id or "").strip() or None
         self._client_turn_id = str(client_turn_id or "").strip() or None
+
+    def set_live_sink(self, sink: LiveSink | None) -> None:
+        """Optional in-memory sink for true mid-turn SSE (no second DB reader)."""
+        self._live_sink = sink
 
     def record(self, tenant_id: str, session_id: str, event_type: str, payload: dict[str, Any]) -> AgentEvent:
         traced_payload = dict(payload)
@@ -31,4 +39,11 @@ class EventLog:
             payload_json=traced_payload,
         )
         self.db.add(event)
+        sink = self._live_sink
+        if sink is not None:
+            try:
+                sink(event_type, traced_payload)
+            except Exception:
+                # Live streaming must never break the durable turn.
+                pass
         return event

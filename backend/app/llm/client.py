@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Iterator, Mapping
 import copy
+from dataclasses import dataclass, field
 import hashlib
 import json
 import math
@@ -36,6 +37,21 @@ from app.security.encryption import decrypt_secret
 
 class LLMError(Exception):
     """Raised when an LLM provider request or response normalization fails."""
+
+
+@dataclass
+class ParsedToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ToolsTurnResult:
+    content: str
+    tool_calls: list[ParsedToolCall] = field(default_factory=list)
+    finish_reason: str | None = None
+    reasoning_content: str | None = None
 
 
 JSON_REPAIR_ATTEMPTS = 3
@@ -431,6 +447,117 @@ class LLMClient:
             self.driver = driver
         return driver
 
+    def complete_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        *,
+        tool_choice: str = "auto",
+        cancellation: CancellationToken | None = None,
+    ) -> ToolsTurnResult:
+        """Native OpenAI function calling (AgentCore-style tools= / tool_calls).
+
+        Only supported for ``openai_chat_completions``. Callers must fall back for
+        other protocols. Thinking mode follows provider default (not forced off).
+        """
+        if self.api_protocol is not ModelApiProtocol.OPENAI_CHAT_COMPLETIONS:
+            raise LLMError("MODEL_PROTOCOL_UNSUPPORTED")
+        if not tools:
+            raise LLMError("complete_with_tools requires a non-empty tools list")
+        max_output_tokens = operation_output_tokens(
+            current_llm_operation(), self.max_output_tokens
+        )
+        request_messages = _fit_request_messages(list(messages))
+        request_shape = {
+            "system_prompt_chars": sum(
+                len(str(m.get("content") or ""))
+                for m in request_messages
+                if m.get("role") == "system"
+            ),
+            "payload_chars": sum(
+                len(json.dumps(m, ensure_ascii=False, default=str))
+                for m in request_messages
+                if m.get("role") != "system"
+            ),
+            "message_count": len(request_messages),
+        }
+        try:
+            request: dict[str, Any] = {
+                "model": self.model,
+                "messages": request_messages,
+                "temperature": self.temperature,
+                "max_tokens": max_output_tokens,
+                "tools": tools,
+                "tool_choice": tool_choice,
+            }
+            if cancellation is not None:
+                request["_cancellation"] = cancellation
+            request.update(
+                _thinking_request_kwargs(
+                    getattr(self, "thinking_mode", ""),
+                    getattr(self, "extra_body", {}),
+                )
+            )
+            empty_diagnostics: list[str] = []
+            current_max_tokens = max_output_tokens
+            for attempt in range(EMPTY_RESPONSE_RETRIES + 1):
+                request["max_tokens"] = current_max_tokens
+                span = start_llm_call(
+                    model=self.model,
+                    endpoint=_endpoint_label(getattr(self, "base_url", "")),
+                    request_kind=self._protocol_driver().request_kind,
+                    stream=False,
+                    attempt=attempt + 1,
+                    retry_count=attempt,
+                    max_attempts=EMPTY_RESPONSE_RETRIES + 1,
+                    max_output_tokens=current_max_tokens,
+                    thinking_mode=getattr(self, "thinking_mode", "") or "provider_default",
+                    response_mode="tools",
+                    **request_shape,
+                )
+                try:
+                    completion = self._protocol_driver().complete(request)
+                except BaseException as exc:
+                    span.fail(exc, **_completion_span_metrics(None))
+                    raise
+                result = _parse_tools_turn(completion)
+                metrics = _completion_span_metrics(completion)
+                has_output = bool(result.content.strip()) or bool(result.tool_calls)
+                if has_output:
+                    span.finish(
+                        ttft_ms=span.elapsed_ms(),
+                        output_chars=len(result.content),
+                        status="success",
+                        tool_call_count=len(result.tool_calls),
+                        **metrics,
+                    )
+                    return result
+                span.finish(
+                    ttft_ms=span.elapsed_ms(),
+                    output_chars=0,
+                    status="empty",
+                    tool_call_count=0,
+                    **metrics,
+                )
+                empty_diagnostics.append(
+                    _completion_empty_diagnostic(completion, attempt + 1)
+                )
+                if (
+                    metrics.get("finish_reason") == "length"
+                    and metrics.get("reasoning_chars", 0) > 0
+                ):
+                    current_max_tokens = _escalate_reasoning_token_budget(
+                        current_max_tokens
+                    )
+                if attempt >= EMPTY_RESPONSE_RETRIES:
+                    raise LLMError(_empty_response_detail(self, empty_diagnostics))
+        except Exception as exc:
+            if isinstance(exc, LLMError):
+                raise
+            if isinstance(exc, ProtocolCallError):
+                raise LLMError(exc.code) from exc
+            raise LLMError(_provider_failure_detail(self, exc)) from exc
+
     def generate_json(
         self,
         system_prompt: str,
@@ -551,6 +678,48 @@ def _completion_message_content(completion: Any) -> str:
     except (IndexError, TypeError, AttributeError):
         return ""
     return _content_text(content)
+
+
+def _parse_tools_turn(completion: Any) -> ToolsTurnResult:
+    try:
+        choice = completion.choices[0]
+        message = getattr(choice, "message", None)
+        finish_reason = getattr(choice, "finish_reason", None)
+    except (IndexError, TypeError, AttributeError):
+        return ToolsTurnResult(content="", tool_calls=[], finish_reason=None)
+    content = _content_text(getattr(message, "content", None) if message else None)
+    reasoning = None
+    if message is not None:
+        raw_reasoning = getattr(message, "reasoning_content", None)
+        if raw_reasoning is not None:
+            reasoning = str(raw_reasoning)
+    parsed_calls: list[ParsedToolCall] = []
+    raw_calls = getattr(message, "tool_calls", None) if message is not None else None
+    if raw_calls:
+        for index, call in enumerate(raw_calls):
+            function = getattr(call, "function", None)
+            name = str(getattr(function, "name", "") or "").strip()
+            if not name:
+                continue
+            call_id = str(getattr(call, "id", "") or f"call_{index}")
+            raw_args = getattr(function, "arguments", None) or "{}"
+            if isinstance(raw_args, dict):
+                arguments = dict(raw_args)
+            else:
+                try:
+                    loaded = json.loads(str(raw_args))
+                    arguments = loaded if isinstance(loaded, dict) else {"raw": loaded}
+                except json.JSONDecodeError:
+                    arguments = {"raw": str(raw_args)}
+            parsed_calls.append(
+                ParsedToolCall(id=call_id, name=name, arguments=arguments)
+            )
+    return ToolsTurnResult(
+        content=content,
+        tool_calls=parsed_calls,
+        finish_reason=str(finish_reason) if finish_reason else None,
+        reasoning_content=reasoning,
+    )
 
 
 def _request_shape_metrics(

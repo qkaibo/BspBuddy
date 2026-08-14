@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 import hashlib
+import re
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
 
 from app.core.capability_manifest import CapabilityManifestBuilder
 from app.core.capability_discovery import project_capability_manifest
@@ -40,12 +42,14 @@ from app.core.task_request_compiler import (
 )
 from app.core.turn_planner import TurnPlanner, turn_plan_router_decision
 from app.db.models import (
+    AgentResourceBinding,
     ChatSession,
     HarnessRunRecord,
     HarnessTaskFrameRecord,
     HarnessTurnRecord,
     Message,
     Skill,
+    new_id,
 )
 from app.knowledge.citations import compact_knowledge_citation_labels
 from app.memory.service import memory_read
@@ -53,8 +57,17 @@ from app.session.helpers import public_session
 from app.session.session_schema import (
     ChatTurnRequest,
     ChatTurnResponse,
+    PlannedTaskFrame,
     StepAgentResult,
     TurnPlan,
+)
+
+_CHITCHAT_RE = re.compile(
+    r"^(你好|您好|嗨|在吗|hello|hi|hey|"
+    r"介绍(一下)?(你自己)?|你是谁|"
+    r"早上好|下午好|晚上好)"
+    r"[\s!！.。?？~～]*$",
+    re.IGNORECASE,
 )
 
 
@@ -201,6 +214,28 @@ class HarnessV2Engine:
                 "execution_engine": "harness_v2",
             },
         )
+        # Planner does not see MCP/general_skill bindings. For capable experts,
+        # keep answer_only only for clear chitchat; otherwise lift to conversation
+        # so Harness can discover/call tools (e.g. QCM4490 float-voltage questions).
+        if plan.decision == "answer_only" and session.agent_id:
+            has_capabilities = _agent_has_capabilities(
+                self.db, request.tenant_id, session.agent_id
+            )
+            if has_capabilities and not _looks_like_chitchat(request.message):
+                frame_id = new_id("conv")
+                plan.task_frames = [
+                    PlannedTaskFrame(
+                        task_id=frame_id,
+                        kind="conversation",
+                        status="queued",
+                        decision="start_new_task",
+                        user_intent=plan.user_intent or request.message,
+                    )
+                ]
+                plan.decision = "start_new_task"
+                plan.reason = plan.reason or (
+                    "当前专家有 MCP/技能可用，业务问题按通用任务执行。"
+                )
         if plan.decision == "complete_task":
             active_task_frame_id = self.store.active_task_frame_id(session)
             self.store.complete_active_frame(
@@ -545,6 +580,56 @@ class HarnessV2Engine:
             # while compiling the TaskRequirement only from the safe model
             # projection. capability_describe can activate schemas later.
             model_manifest = project_capability_manifest(manifest)
+            has_usable_mcp = any(
+                item.available
+                and item.kind == "tool"
+                and str((item.metadata or {}).get("provider") or "") == "mcp"
+                for item in manifest.available
+            )
+            mcp_down = None
+            if row.kind == "conversation" and session.agent_id:
+                # Probe bound MCP endpoints. Stale discovered_tools can look
+                # "available" while the server is actually down.
+                mcp_down = _mcp_unavailable_details(
+                    self.db,
+                    request.tenant_id,
+                    session.agent_id,
+                    manifest,
+                )
+            if mcp_down is not None:
+                # Bound MCP is down: skip empty-workspace LLM thrash and tell
+                # the user immediately.
+                reply = _mcp_unavailable_reply(mcp_down)
+                self.events.record(
+                    request.tenant_id,
+                    session.id,
+                    "mcp_unavailable",
+                    {
+                        "task_frame_id": row.task_id,
+                        "servers": mcp_down,
+                        "message": "MCP 不可达",
+                        "execution_engine": "harness_v2",
+                    },
+                )
+                early = TaskExecutionResult(
+                    task_frame_id=row.task_id,
+                    status="awaiting_user",
+                    reply_fragment=reply,
+                    task_summary="MCP 不可达，已提前结束本轮。",
+                    action_count=0,
+                    error={
+                        "code": "MCP_UNAVAILABLE",
+                        "message": "MCP 不可达",
+                        "servers": mcp_down,
+                    },
+                )
+                results.append(early)
+                last_step_result = _step_result(early)
+                self.db.commit()
+                break
+            if row.kind == "conversation" and not has_usable_mcp:
+                # No reachable MCP / skills-only: still cap rounds if tools missing.
+                remaining_actions = min(remaining_actions, 3)
             requirement = self.compiler.compile(
                 frame,
                 session,
@@ -621,6 +706,24 @@ class HarnessV2Engine:
                 is_cancelled=lambda: self._is_cancelled(request, session),
                 image_payloads=image_payloads,
             )
+            if (
+                isinstance(result.error, dict)
+                and str(result.error.get("code") or "") == "MCP_UNAVAILABLE"
+            ):
+                servers = result.error.get("servers")
+                if not isinstance(servers, list):
+                    servers = []
+                self.events.record(
+                    request.tenant_id,
+                    session.id,
+                    "mcp_unavailable",
+                    {
+                        "task_frame_id": row.task_id,
+                        "servers": servers,
+                        "message": "MCP 不可达",
+                        "execution_engine": "harness_v2",
+                    },
+                )
             results.append(result)
             remaining_actions -= max(1, result.action_count)
 
@@ -1396,3 +1499,145 @@ def _dependency_order(
             resolved.add(row.task_id)
             remaining.remove(row)
     return ordered
+
+
+def _looks_like_chitchat(message: str) -> bool:
+    text = str(message or "").strip()
+    if not text or len(text) > 40:
+        return False
+    return bool(_CHITCHAT_RE.match(text))
+
+
+def _agent_has_capabilities(
+    db: Any, tenant_id: str, agent_id: str
+) -> bool:
+    """Check if an agent has MCP tools or general skills bound."""
+    rows = db.exec(
+        select(AgentResourceBinding).where(
+            AgentResourceBinding.tenant_id == tenant_id,
+            AgentResourceBinding.agent_id == agent_id,
+            AgentResourceBinding.resource_type.in_(["mcp", "general_skill"]),
+            AgentResourceBinding.status == "active",
+        ).limit(1)
+    ).all()
+    return len(rows) > 0
+
+
+def _mcp_unavailable_details(
+    db: Any,
+    tenant_id: str,
+    agent_id: str,
+    manifest: Any,
+) -> list[dict[str, str]] | None:
+    """If the agent has MCP bindings and none are reachable, return details.
+
+    Returns None when there are no MCP bindings, or at least one MCP is up.
+    Stale ``discovered_tools`` must not hide a dead endpoint.
+    """
+    from app.db.models import MCPServer
+
+    bindings = db.exec(
+        select(AgentResourceBinding).where(
+            AgentResourceBinding.tenant_id == tenant_id,
+            AgentResourceBinding.agent_id == agent_id,
+            AgentResourceBinding.resource_type == "mcp",
+            AgentResourceBinding.status == "active",
+        )
+    ).all()
+    if not bindings:
+        return None
+
+    reason_by_id: dict[str, str] = {}
+    for item in getattr(manifest, "unavailable_references", None) or []:
+        cid = str(getattr(item, "capability_id", "") or "")
+        reason = str(getattr(item, "unavailable_reason", "") or "").strip()
+        if cid and reason:
+            reason_by_id[cid] = reason
+
+    details: list[dict[str, str]] = []
+    any_reachable = False
+    for binding in bindings:
+        mcp_srv = db.get(MCPServer, binding.resource_id)
+        if mcp_srv is None or mcp_srv.tenant_id != tenant_id:
+            details.append(
+                {
+                    "id": binding.resource_id,
+                    "name": binding.resource_id,
+                    "reason": "绑定的 MCP 服务器不存在或无权访问。",
+                    "url": "",
+                }
+            )
+            continue
+        name = str(mcp_srv.display_name or mcp_srv.name or mcp_srv.id)
+        url = str(mcp_srv.url or "")
+        probe_error = _probe_mcp_endpoint(mcp_srv)
+        if probe_error is None and (mcp_srv.discovered_tools_json or []):
+            any_reachable = True
+            continue
+        if probe_error is None and not (mcp_srv.discovered_tools_json or []):
+            # Port may be open but no tools — treat as down for early exit.
+            reason = reason_by_id.get(mcp_srv.id) or "MCP 工具列表为空。"
+            details.append(
+                {"id": mcp_srv.id, "name": name, "reason": reason, "url": url}
+            )
+            continue
+        reason = probe_error or reason_by_id.get(mcp_srv.id) or "MCP 服务器不可用。"
+        details.append(
+            {"id": mcp_srv.id, "name": name, "reason": reason, "url": url}
+        )
+
+    if any_reachable:
+        return None
+    return details or None
+
+
+def _probe_mcp_endpoint(mcp_srv: Any) -> str | None:
+    """Return an error string if the MCP endpoint looks unreachable, else None."""
+    import socket
+    from urllib.parse import urlparse
+
+    transport = str(getattr(mcp_srv, "transport", "") or "").lower()
+    url = str(getattr(mcp_srv, "url", "") or "").strip()
+    if transport in {"sse", "http", "streamable_http", "streamable-http"} and url:
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if not host:
+            return "MCP URL 无效"
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        try:
+            with socket.create_connection((host, int(port)), timeout=1.5):
+                return None
+        except OSError as exc:
+            return f"连接失败：{exc}"
+    if transport == "stdio":
+        command = str(getattr(mcp_srv, "command", "") or "").strip()
+        if not command:
+            return "stdio MCP 未配置启动命令"
+        return None
+    if transport == "builtin":
+        return None
+    if not (getattr(mcp_srv, "discovered_tools_json", None) or []):
+        return "MCP 工具列表为空或服务器不可用"
+    return None
+
+
+def _mcp_unavailable_reply(servers: list[dict[str, str]]) -> str:
+    lines = [
+        "## MCP 不可达",
+        "",
+        "当前专家绑定的 MCP 服务器无法使用，暂时不能检索代码库 / 寄存器定义。",
+        "",
+    ]
+    for item in servers:
+        name = item.get("name") or item.get("id") or "MCP"
+        reason = item.get("reason") or "连接失败"
+        url = item.get("url") or ""
+        extra = f"（`{url}`）" if url else ""
+        lines.append(f"- **{name}**{extra}：{reason}")
+    lines.extend(
+        [
+            "",
+            "请恢复 MCP 服务后重试，或把相关源码 / 手册放到工作区后再提问。",
+        ]
+    )
+    return "\n".join(lines)

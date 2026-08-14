@@ -5,11 +5,14 @@ import threading
 import traceback
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from time import sleep
 from types import SimpleNamespace
 from typing import Any, Literal
 
 from sqlmodel import Session, select
+
+from app.db.database import engine
 
 from app.agents.branching import (
     is_bound_resource_visible_for_agent,
@@ -79,6 +82,7 @@ from app.db.models import (
     AgentResourceBinding,
     ChatSession,
     GeneralSkill,
+    HarnessInvocationRecord,
     HarnessTurnRecord,
     HumanHandoffRequest,
     Message,
@@ -2257,12 +2261,15 @@ class AgentLoop:
             update={"session_id": chat_session.id}
         )
         initial_turn_id = str(request.client_turn_id or "").strip() or None
+        session_id = chat_session.id
+        # Release write locks before the worker thread starts writing.
+        self.db.commit()
         if created_session:
             yield self._stream_event(
                 "session_created",
                 chat_session,
                 {
-                    "sessionId": chat_session.id,
+                    "sessionId": session_id,
                     "turn_id": initial_turn_id,
                     "client_turn_id": request.client_turn_id,
                     "execution_engine": "harness_v2",
@@ -2273,7 +2280,7 @@ class AgentLoop:
             chat_session,
             self._turn_payload(
                 {
-                    "sessionId": chat_session.id,
+                    "sessionId": session_id,
                     "client_turn_id": request.client_turn_id,
                     "execution_engine": "harness_v2",
                 },
@@ -2287,10 +2294,182 @@ class AgentLoop:
             {"execution_engine": "harness_v2"},
             user_message_id=initial_turn_id,
         )
-        response = self.handle_turn(scoped_request)
-        chat_session = self.db.get(ChatSession, response.session_id)
-        if chat_session is None:
+        self.db.commit()
+
+        # True mid-turn streaming: worker owns its own Session; this generator
+        # only reads an in-memory queue (never a second DB poller — that wedges
+        # SQLite).
+        live_q: queue.Queue[dict[str, object] | None] = queue.Queue()
+        outcome: dict[str, object] = {}
+
+        def _emit_live(event_type: str, payload: dict[str, Any]) -> None:
+            mapped = _map_live_turn_event(
+                event_type,
+                payload,
+                session_id=session_id,
+                user_message_id=initial_turn_id,
+            )
+            if mapped is not None:
+                live_q.put(mapped)
+
+        def _run_turn() -> None:
+            try:
+                with Session(engine) as worker_db:
+                    worker = AgentLoop(worker_db)
+                    worker.events.set_live_sink(_emit_live)
+                    try:
+                        outcome["response"] = worker.handle_turn(scoped_request)
+                    finally:
+                        worker.events.set_live_sink(None)
+            except Exception as exc:  # noqa: BLE001 — surface on stream
+                outcome["error"] = exc
+            finally:
+                live_q.put(None)
+
+        worker_thread = threading.Thread(
+            target=_run_turn,
+            name=f"harness-turn-{session_id[:12]}",
+            daemon=True,
+        )
+        worker_thread.start()
+
+        while True:
+            try:
+                item = live_q.get(timeout=2.0)
+            except queue.Empty:
+                # Keep the SSE connection alive while the planner/LLM thinks.
+                yield self._stream_event(
+                    "heartbeat",
+                    chat_session,
+                    {
+                        "phase": "running",
+                        "sessionId": session_id,
+                        "execution_engine": "harness_v2",
+                        **(
+                            self._turn_payload({}, initial_turn_id)
+                            if initial_turn_id
+                            else {}
+                        ),
+                    },
+                )
+                if not worker_thread.is_alive() and live_q.empty():
+                    break
+                continue
+            if item is None:
+                break
+            yield item
+
+        worker_thread.join(timeout=5)
+        err = outcome.get("error")
+        if isinstance(err, BaseException):
+            yield self._stream_event(
+                "error",
+                chat_session,
+                {
+                    "kind": "error",
+                    "message": str(err) or err.__class__.__name__,
+                    "sessionId": session_id,
+                    "execution_engine": "harness_v2",
+                },
+            )
             return
+
+        response = outcome.get("response")
+        if not isinstance(response, ChatTurnResponse):
+            yield self._stream_event(
+                "error",
+                chat_session,
+                {
+                    "kind": "error",
+                    "message": "专家回合未返回有效结果",
+                    "sessionId": session_id,
+                    "execution_engine": "harness_v2",
+                },
+            )
+            return
+
+        self.db.expire_all()
+        chat_session = self.db.get(ChatSession, response.session_id) or chat_session
+        capability_trace = self._capability_trace_for_session(
+            request.tenant_id, response.session_id
+        )
+        mcp_unavail = self._latest_mcp_unavailable(
+            request.tenant_id, response.session_id
+        )
+        if mcp_unavail is None and any(
+            str(item.get("kind") or "") == "mcp"
+            and str(item.get("status") or "") == "unavailable"
+            for item in capability_trace
+        ):
+            mcp_unavail = {"message": "MCP 不可达", "servers": []}
+        already_has_mcp_down = any(
+            str(item.get("kind") or "") == "mcp"
+            and str(item.get("status") or "") == "unavailable"
+            for item in capability_trace
+        )
+        if mcp_unavail is not None and not already_has_mcp_down:
+            servers = mcp_unavail.get("servers") or []
+            names = [
+                str(item.get("name") or item.get("id") or "MCP")
+                for item in servers
+                if isinstance(item, dict)
+            ]
+            label = "MCP 不可达"
+            if names:
+                label = f"MCP 不可达 · {', '.join(names[:3])}"
+            capability_trace = [
+                {
+                    "id": "mcp_unavailable",
+                    "label": label,
+                    "kind": "mcp",
+                    "status": "unavailable",
+                    "provider": "mcp",
+                },
+                *capability_trace,
+            ]
+        # Normalize invocation-derived MCP failures onto a stable id so the
+        # final summary merges with the live progress step.
+        for item in capability_trace:
+            if (
+                str(item.get("kind") or "") == "mcp"
+                and str(item.get("status") or "") == "unavailable"
+            ):
+                tool = str(item.get("tool_name") or "").strip()
+                if tool:
+                    item["id"] = f"mcp:unavailable:{tool}"
+                    item["label"] = f"MCP 不可达 · {tool}"
+        if capability_trace or mcp_unavail is not None:
+            yield {
+                "event": "capability_trace",
+                "type": "capability_trace",
+                "data": {
+                    "kind": "capability_trace",
+                    "sessionId": response.session_id,
+                    "timestamp": utc_now().isoformat(),
+                    "provider": "skill",
+                    "execution_engine": "harness_v2",
+                    "steps": capability_trace,
+                    "mcp_called": any(
+                        str(item.get("provider") or "") == "mcp"
+                        and str(item.get("status") or "")
+                        not in {"unavailable", "failed", "error"}
+                        and str(item.get("id") or "") != "mcp_unavailable"
+                        for item in capability_trace
+                    ),
+                    "mcp_unavailable": mcp_unavail is not None,
+                    "mcp_unavailable_detail": (
+                        mcp_unavail.get("message")
+                        if isinstance(mcp_unavail, dict)
+                        else None
+                    )
+                    or ("MCP 不可达" if mcp_unavail is not None else None),
+                    **(
+                        self._turn_payload({}, initial_turn_id)
+                        if initial_turn_id
+                        else {}
+                    ),
+                },
+            }
         user_message = None
         client_turn_id = str(request.client_turn_id or "").strip()
         if client_turn_id:
@@ -2336,20 +2515,44 @@ class AgentLoop:
                 ),
             )
             return
-        for chunk in self.response_generator.chunk_text(response.reply):
-            event = self._stream_event(
-                "stream_delta",
-                chat_session,
-                self._turn_payload(
-                    {
-                        "content": chunk,
-                        "execution_engine": "harness_v2",
-                    },
-                    user_message_id,
-                ),
-            )
-            self.db.commit()
-            yield event
+        for chunk in self.response_generator.chunk_text(response.reply, chunk_size=48):
+            yield {
+                "event": "stream_delta",
+                "type": "stream_delta",
+                "data": {
+                    "kind": "stream_delta",
+                    "content": chunk,
+                    "sessionId": chat_session.id,
+                    "timestamp": utc_now().isoformat(),
+                    "provider": "skill",
+                    "execution_engine": "harness_v2",
+                    **(
+                        self._turn_payload({}, user_message_id)
+                        if user_message_id
+                        else {}
+                    ),
+                },
+            }
+        # Always send one full replace so desktop clients that miss tiny deltas
+        # still receive the complete expert reply.
+        if str(response.reply or "").strip():
+            yield {
+                "event": "stream_replace",
+                "type": "stream_replace",
+                "data": {
+                    "kind": "stream_replace",
+                    "content": response.reply,
+                    "sessionId": chat_session.id,
+                    "timestamp": utc_now().isoformat(),
+                    "provider": "skill",
+                    "execution_engine": "harness_v2",
+                    **(
+                        self._turn_payload({}, user_message_id)
+                        if user_message_id
+                        else {}
+                    ),
+                },
+            }
         end_event = self._stream_event(
             "stream_end",
             chat_session,
@@ -2370,6 +2573,92 @@ class AgentLoop:
                 user_message_id,
             ),
         )
+
+    def _poll_capability_progress_events(
+        self,
+        tenant_id: str,
+        session_id: str,
+        seen_invocation_ids: set[str],
+        user_message_id: str | None = None,
+    ) -> Iterator[dict[str, object]]:
+        """Poll durable harness invocations for live MCP/tool progress events."""
+        with Session(engine) as poll_db:
+            rows = list(
+                poll_db.exec(
+                    select(HarnessInvocationRecord)
+                    .where(
+                        HarnessInvocationRecord.tenant_id == tenant_id,
+                        HarnessInvocationRecord.session_id == session_id,
+                    )
+                    .order_by(HarnessInvocationRecord.started_at.asc())
+                ).all()
+            )
+        for row in rows:
+            fingerprint = f"{row.id}:{row.status}"
+            if fingerprint in seen_invocation_ids:
+                continue
+            # Allow one event for started and one for terminal status.
+            if row.status == "started":
+                seen_invocation_ids.add(fingerprint)
+            else:
+                seen_invocation_ids.add(f"{row.id}:started")
+                seen_invocation_ids.add(fingerprint)
+            step = _invocation_trace_step(row)
+            yield {
+                "event": "capability_progress",
+                "type": "capability_progress",
+                "data": {
+                    "kind": "capability_progress",
+                    "sessionId": session_id,
+                    "timestamp": utc_now().isoformat(),
+                    "provider": "skill",
+                    "execution_engine": "harness_v2",
+                    "phase": "capability",
+                    "text": step["label"],
+                    "step": step,
+                    **(
+                        self._turn_payload({}, user_message_id)
+                        if user_message_id
+                        else {}
+                    ),
+                },
+            }
+
+    def _capability_trace_for_session(
+        self, tenant_id: str, session_id: str
+    ) -> list[dict[str, object]]:
+        rows = list(
+            self.db.exec(
+                select(HarnessInvocationRecord)
+                .where(
+                    HarnessInvocationRecord.tenant_id == tenant_id,
+                    HarnessInvocationRecord.session_id == session_id,
+                )
+                .order_by(HarnessInvocationRecord.started_at.asc())
+            ).all()
+        )
+        # Prefer the latest status per invocation id.
+        latest: dict[str, HarnessInvocationRecord] = {}
+        for row in rows:
+            latest[row.id] = row
+        return [_invocation_trace_step(row) for row in latest.values()]
+
+    def _latest_mcp_unavailable(
+        self, tenant_id: str, session_id: str
+    ) -> dict[str, object] | None:
+        row = self.db.exec(
+            select(AgentEvent)
+            .where(
+                AgentEvent.tenant_id == tenant_id,
+                AgentEvent.session_id == session_id,
+                AgentEvent.event_type == "mcp_unavailable",
+            )
+            .order_by(AgentEvent.created_at.desc())
+        ).first()
+        if row is None:
+            return None
+        payload = row.payload_json if isinstance(row.payload_json, dict) else {}
+        return dict(payload)
 
     def _stream_status(
         self,
@@ -6051,3 +6340,234 @@ class AgentLoop:
 
     def _strip_trailing_citation_summary(self, reply: str) -> str:
         return LegacyConversationProjection.strip_trailing_citation_summary(reply)
+
+
+def _format_duration_suffix(duration_ms: object) -> str:
+    try:
+        ms = int(duration_ms)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return ""
+    if ms < 0:
+        return ""
+    if ms < 1000:
+        return f" · {ms}ms"
+    return f" · {ms / 1000:.1f}s"
+
+
+def _invocation_duration_ms(row: HarnessInvocationRecord) -> int | None:
+    started = row.started_at
+    finished = row.finished_at
+    if isinstance(started, datetime) and isinstance(finished, datetime):
+        return max(0, int((finished - started).total_seconds() * 1000))
+    raw = row.result_json if isinstance(row.result_json, dict) else {}
+    value = raw.get("duration_ms")
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+    return None
+
+
+def _invocation_trace_step(row: HarnessInvocationRecord) -> dict[str, object]:
+    args = row.arguments_json if isinstance(row.arguments_json, dict) else {}
+    provider = str(args.get("_provider") or args.get("_capability_kind") or "tool")
+    kind = "mcp" if provider == "mcp" else (
+        "capability" if str(row.tool_name).startswith("capability_") else "tool"
+    )
+    if provider == "general_skill" or str(args.get("_capability_kind")) == "general_skill":
+        kind = "skill"
+    status = str(row.status or "started")
+    name = str(row.tool_name or "unknown")
+    if kind == "mcp":
+        prefix = "MCP"
+    elif kind == "skill":
+        prefix = "技能"
+    elif kind == "capability":
+        prefix = "能力"
+    else:
+        prefix = "工具"
+    duration_ms = _invocation_duration_ms(row)
+    duration_suffix = (
+        _format_duration_suffix(duration_ms) if status != "started" else ""
+    )
+    if status == "started":
+        label = f"正在调用{prefix} · {name}"
+    elif status == "completed":
+        label = f"调用{prefix} · {name} · 完成{duration_suffix}"
+    elif status == "failed":
+        label = f"调用{prefix} · {name} · 失败{duration_suffix}"
+    elif status == "outcome_unknown":
+        label = (
+            f"MCP 不可达 · {name}{duration_suffix}"
+            if kind == "mcp"
+            else f"调用{prefix} · {name} · 结果未知{duration_suffix}"
+        )
+    else:
+        label = f"调用{prefix} · {name} · {status}{duration_suffix}"
+    step_status = status
+    if kind == "mcp" and status in {"failed", "outcome_unknown"}:
+        step_status = "unavailable"
+        if "不可达" not in label:
+            label = f"MCP 不可达 · {name}{duration_suffix}"
+    step: dict[str, object] = {
+        "id": row.id,
+        "label": label,
+        "kind": kind,
+        "status": step_status,
+        "provider": provider if provider != "tool" else None,
+        "tool_name": name,
+    }
+    if duration_ms is not None and status != "started":
+        step["durationMs"] = duration_ms
+        step["duration_ms"] = duration_ms
+    return step
+
+
+def _map_live_turn_event(
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    session_id: str,
+    user_message_id: str | None,
+) -> dict[str, object] | None:
+    """Map durable AgentEvent types to mid-turn SSE payloads."""
+    turn_bits: dict[str, object] = {"sessionId": session_id}
+    if user_message_id:
+        turn_bits["user_message_id"] = user_message_id
+        turn_bits["turn_id"] = user_message_id
+    if payload.get("client_turn_id"):
+        turn_bits["client_turn_id"] = payload["client_turn_id"]
+    turn_bits["execution_engine"] = "harness_v2"
+    turn_bits["timestamp"] = utc_now().isoformat()
+
+    # turn_plan_created and router_decision_created carry the same reason —
+    # emit once to avoid duplicate status lines in the UI.
+    if event_type == "router_decision_created":
+        return None
+
+    if event_type in {"stream_status", "turn_plan_created"}:
+        text = str(
+            payload.get("text")
+            or payload.get("message")
+            or payload.get("reason")
+            or ("规划完成" if event_type == "turn_plan_created" else "")
+        ).strip()
+        phase = str(payload.get("phase") or event_type)
+        if not text and event_type == "turn_plan_created":
+            text = "规划完成，开始执行"
+        if not text:
+            return None
+        return {
+            "event": "status",
+            "type": "status",
+            "data": {
+                "kind": "status",
+                "phase": phase,
+                "text": text,
+                **turn_bits,
+            },
+        }
+
+    # mcp_unavailable is also signaled via harness_tool_completed; skip the
+    # duplicate live event (final capability_trace still carries the flag).
+    if event_type == "mcp_unavailable":
+        return None
+
+    if event_type == "task_frame_started":
+        kind = str(payload.get("kind") or "task")
+        return {
+            "event": "status",
+            "type": "status",
+            "data": {
+                "kind": "status",
+                "phase": "task_frame_started",
+                "text": f"开始执行任务（{kind}）",
+                **turn_bits,
+            },
+        }
+
+    if event_type == "harness_action_created":
+        action = str(payload.get("action") or "")
+        tool_name = str(payload.get("tool_name") or "").strip()
+        if action == "finish":
+            text = "正在生成回复"
+        elif tool_name:
+            text = f"准备调用 · {tool_name}"
+        else:
+            text = "正在决策下一步"
+        return {
+            "event": "status",
+            "type": "status",
+            "data": {
+                "kind": "status",
+                "phase": "harness_action",
+                "text": text,
+                **turn_bits,
+            },
+        }
+
+    if event_type == "harness_tool_completed":
+        tool_name = str(payload.get("tool_name") or "tool").strip() or "tool"
+        success = bool(payload.get("success"))
+        err = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+        err_code = str(err.get("code") or "").upper()
+        provider_hint = str(payload.get("provider") or "").lower()
+        is_mcp = (
+            provider_hint == "mcp"
+            or err_code.startswith("MCP")
+            or "mcp" in tool_name.lower()
+            or tool_name in {"search_aosp", "search_code", "code_search"}
+        )
+        provider = "mcp" if is_mcp else "tool"
+        status = "completed" if success else (
+            "unavailable" if err_code in {"MCP_TOOL_ERROR", "MCP_UNAVAILABLE", "UNAVAILABLE"} else "failed"
+        )
+        duration_ms = payload.get("duration_ms")
+        if not isinstance(duration_ms, (int, float)):
+            duration_ms = payload.get("durationMs")
+        duration_suffix = _format_duration_suffix(duration_ms)
+        if status == "unavailable":
+            label = f"MCP 不可达 · {tool_name}{duration_suffix}"
+            kind = "mcp"
+            provider = "mcp"
+            step_id = f"mcp:unavailable:{tool_name}"
+        elif provider == "mcp" or is_mcp:
+            label = (
+                f"调用 MCP · {tool_name} · "
+                f"{'完成' if success else '失败'}{duration_suffix}"
+            )
+            kind = "mcp"
+            step_id = f"mcp:{tool_name}"
+        else:
+            label = (
+                f"调用工具 · {tool_name} · "
+                f"{'完成' if success else '失败'}{duration_suffix}"
+            )
+            kind = "tool"
+            step_id = f"tool:{tool_name}:{payload.get('iteration') or ''}"
+        step: dict[str, object] = {
+            "id": step_id,
+            "label": label,
+            "kind": kind,
+            "status": status,
+            "provider": provider,
+            "tool_name": tool_name,
+        }
+        if isinstance(duration_ms, (int, float)):
+            step["durationMs"] = int(duration_ms)
+            step["duration_ms"] = int(duration_ms)
+        data: dict[str, object] = {
+            "kind": "capability_progress",
+            "text": label,
+            "step": step,
+            "tool_name": tool_name,
+            **turn_bits,
+        }
+        if status == "unavailable":
+            data["mcp_unavailable"] = True
+            data["mcp_unavailable_detail"] = str(err.get("message") or "MCP 不可达")
+        return {
+            "event": "capability_progress",
+            "type": "capability_progress",
+            "data": data,
+        }
+
+    return None

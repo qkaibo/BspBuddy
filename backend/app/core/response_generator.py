@@ -189,15 +189,33 @@ class ResponseGenerator:
         tool_result: ToolResult | None,
         task_results: list[dict[str, object]] | None = None,
     ) -> bool:
-        return bool(
+        reply = str(step_result.reply or "").strip()
+        if not reply:
+            return False
+        # Clarify / ask without a parallel tool call — keep historical short path.
+        if (
             not task_results
-            and str(step_result.reply or "").strip()
             and step_result.action in {"ask_user", "clarify"}
             and tool_result is None
             and step_result.tool_call is None
             and step_result.knowledge_query is None
             and not step_result.knowledge_results
-        )
+        ):
+            return True
+        # Harness already produced a user-facing reply — skip a full Response LLM rewrite.
+        if task_results and step_result.action in {
+            "ask_user",
+            "clarify",
+            "advance",
+            "reply",
+        }:
+            if step_result.action in {"ask_user", "clarify"}:
+                return True
+            if step_result.is_step_completed and len(reply) >= 8:
+                return True
+            if step_result.action == "reply" and len(reply) >= 8:
+                return True
+        return False
 
     def _payload(
         self,
@@ -473,5 +491,8 @@ class ResponseGenerator:
             memory_context=None,
             instructions=PROMPT_PATH.read_text(encoding="utf-8"),
             stage_data=stage_data,
-            output_contract="只输出最终用户可见的纯文本，不输出 JSON、Markdown 代码围栏、分析过程或内部状态。",
+            output_contract=(
+                "只输出最终用户可见内容，使用 Markdown（标题/列表/代码围栏）组织技术回答；"
+                "不要输出 JSON、分析过程或内部状态。"
+            ),
         )
