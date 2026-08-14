@@ -112,17 +112,26 @@ Test Run：弹窗内展开对话区域，用当前配置测试效果。
 
 ### 5. 侧边栏微调 (`src/components/Sidebar.tsx`)
 
-「更多」菜单新增两项：
+一级导航顺序（`PRIMARY_NAV`）：
 
 ```
-更多 ▼
-├── 资料库
+助理 → 项目 → 专家·技能·连接器 → 知识库
+```
+
+- **知识库**：一级入口，进入 `data` 视图（资料库 / `DataPanel`）。
+- **自动化**：不在一级；放入「更多」菜单（与灵感/邮箱等同级）。
+
+「更多」菜单：
+
+```
+更多 ▼          副标题：自动化·灵感
+├── 自动化
 ├── 灵感
-├── 邮箱      ← 从隐藏提升
-└── 反馈      ← 新增
+├── 邮箱
+└── 反馈
 ```
 
-ViewType 新增 `'feedback'`，App.tsx 渲染 FeedbackPanel。
+ViewType：`'feedback'` → FeedbackPanel；`'automation'` → AutomationPanel。
 
 ### 6. 反馈系统 (`src/components/FeedbackPanel.tsx`)
 
@@ -181,4 +190,4 @@ FEEDBACK_LIST: 'feedback:list'
 - [x] 上线后专家出现在使用 Tab，可召唤使用
 - [x] 广场可浏览并复制他人公开的专家
 - [x] 使用 Tab 保持现有 WorkBuddy 体验不变
-- [x] 侧边栏「更多」可进入邮箱和反馈页面
+- [x] 侧边栏「更多」可进入自动化、邮箱和反馈；「知识库」为一级入口（原自动化位置）

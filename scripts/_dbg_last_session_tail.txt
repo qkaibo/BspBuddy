@@ -1,0 +1,125 @@
+title=QCM4490 充电专家 count=56 updatedAt=1786698461016
+============================================================
+user ts=1786588533996 len=56
+请QCM4490充电专家回答问题：PD 的电压电流请求（PDO）在哪里配置？想要 9V / 12V 档要改什么？
+============================================================
+assistant ts=1786588579419 len=18
+当前任务的执行模型没有返回有效动作。
+============================================================
+user ts=1786588875509 len=56
+请QCM4490充电专家回答问题：PD 的电压电流请求（PDO）在哪里配置？想要 9V / 12V 档要改什么？
+============================================================
+assistant ts=1786588933003 len=1702
+## QCM4490 PD 电压/电流请求（PDO）配置咨询
+
+> ⚠️ 证据说明：本会话中 `search_aosp`（QCM4490 代码库语义检索）多次返回空结果，工作区无源码、命令沙箱不可用，因此**无法直接给出该平台源码树内的确切行号**。以下为 Qualcomm 充电栈通用架构下的配置位置与修改思路，请在拿到源码后按文末关键字核实。
+
+### 1. PDO 配置在哪里？
+
+QCM4490（SM4490）属 Qualcomm IoT 平台，USB PD 协商一般由 **PMIC 内置的 SMB（Switch Mode Battery Charger）驱动**承担，配置位于 **kernel 侧**：
+
+- 驱动目录：`drivers/power/supply/qcom/`
+- 常见驱动文件：`smb5-lib.c` / `smb5-charger.c`（或新平台的 `qcom_pmi_smb5*` 系列）
+- 关键符号（典型命名，需以实际代码为准）：
+  - `smb5_pd_pdo` / `pd_pdo` 数组 —— sink 侧（设备向适配器）请求的 PDO 表
+  - `pd_get_pdo()`、`pd_active_pdo` —— 当前协商使用的 PDO
+  - PPS 档位对应 `smb5_default_pd_pps_pdo[]` 之类的 PPS PDO 表
+- 部分平台也支持通过 **device tree（dts/dtsi）** 覆盖充电参数，可检查
+  `arch/arm64/boot/dts/qcom/<platform>-pmic.dtsi` 中充电节点的 `qcom,xxx` 属性。
+
+### 2. 想要 9V / 12V 档要改什么？
+
+PD Fixed PDO 是 32bit 编码（USB PD 2.0/3.0 spec Table 6-9）：
+
+- **电压**：bit 19–9，单位 50 mV → 9V 填 `180`，12V 填 `240`
+- **最大电流**：bit 9–0，单位 10 mA（如 3A 填 `300`）
+
+修改步骤（Ask 模式只给思路，不展开执行计划）：
+1. 在充电驱动的 PDO 表/数组中，把目标电压档（9V/12V）对应 PDO 的电压位段改为 180/240；
+2. 同步确认该档位电流不超过适配器能力与电池充电限制；
+3. 确认 PMIC 的 SMB 实际支持该电压档（如 `max_voltage_mv`、电池 profile、VBUS 过压保护阈值是否覆盖 12V）；
+4. 修改后需重新编译并验证协商结果（可在 `sysfs` 的 power_supply 节点查看当前协商电压/电流）。
+
+### 3. 注意事项
+
+- **平台差异**：QCM4490 的配套 PMIC（如 PM2250/PM4250 系列）部分只支持 QC/BC1.2，**不一定具备完整 PD/PPS 硬件能力**，改 PDO 前先确认该 PMIC SMB 是否启用 PD 功能（如 `pd_supported` 相关标志）。
+- **方案差异**：若该平台实际走 TCPM/TCPCI 的 Type-C 控制器方案（`drivers/usb/typec/tcpm/`），PDO 则配置在 Type-C 控制器侧而非 PMIC 驱动，需先确认板级用的是哪种。
+- 9V/12V 属于 PDO 协商电压，**不是电池充电电压**；充电恒压目标（如 4.45V）是另一处独立配置，不要混淆。
+
+### 核实关键字
+============================================================
+user ts=1786589993547 len=56
+请QCM4490充电专家回答问题：PD 的电压电流请求（PDO）在哪里配置？想要 9V / 12V 档要改什么？
+============================================================
+assistant ts=1786590073571 len=2244
+## QCM4490 充电 PDO 配置位置与 9V/12V 改动建议
+
+QCM4490 的电池管理（battmngr）跑在 **ADSP 侧**，PD 受电策略（Sink）由 ADSP 的 `usbtypec/dpm` + `battmngr` 处理，因此 **Sink 侧 PDO 的权威配置在 ADSP battmngr 的平台属性文件**，而不是 Kernel 里。
+
+### 1. 主要配置位置（ADSP battmngr）
+
+```
+amss/ADSP.HT.5.7/adsp_proc/core/settings/battman/battmngr/config/<platform>/battmngrconfig_props.c
+```
+结构定义在 `amss/ADSP.HT.5.7/adsp_proc/core/settings/battman/battmngr/interface/BattmngrBsp.h` 的 `BattMngrBsp_props_type`，与 PDO 相关的字段：
+
+| 字段 | 含义 |
+|---|---|
+| `uSinkMaxVoltageMV` | Sink 可接受最大电压（示例平台配置为 21500） |
+| `uSinkMaxCurrentMA` / `uSinkMaxPowerUW` | Sink 最大电流 / 功率上限 |
+| `uSinkCapSize` | Sink PDO 数量（最多 7 个） |
+| `uSinkCapsPDO1..7` | 每个 Sink PDO 的 32bit 编码值 |
+| `uSinkPwrEvalAlg` | 电源评估算法（注释：`0` = 只协商 5V 合约） |
+
+### 2. PDO 编码（USB PD 标准 Fixed Supply PDO，32bit）
+
+以 `include/linux/usb/pd.h` / `dt-bindings/usb/pd.h` 的宏为准：
+- bit31:30 = `00`（Fixed）、bit29 = 双角色电源、bit25 = 双角色数据
+- bit19:10 = 电压，单位 **50mV**
+- bit9:0  = 最大电流，单位 **10mA**
+
+常用值（Fixed PDO）：
+- 5V/3A：`(100<<10)|300 = 0x1912C`
+- **9V/3A：`(180<<10)|300 = 0x2D12C`**
+- **12V/3A：`(240<<10)|300 = 0x3C12C`**
+
+PPS/APDO 走另一类编码（bit31:30=`11`，如示例里的 `0xC1A42164`：min/max 电压 100mV 单位、电流 50mA 单位）。
+
+### 3. 想要 9V / 12V 档需要改什么
+
+1. **在 `battmngrconfig_props.c` 中增加/修改 Sink PDO**：把 9V、12V 的 Fixed PDO 填到 `uSinkCapsPDO*`（例如 PDO2=9V/3A `0x2D12C`、PDO3=12V/3A `0x3C12C`），并把 `uSinkCapSize` 更新为实际 PDO 个数。
+2. **同步上限字段**：`uSinkMaxVoltageMV` 至少 ≥ 12000（建议留余量到 12.5V+），`uSinkMaxCurrentMA`、`uSinkMaxPowerUW` 要能覆盖新增档位。
+3. **确认 `uSinkPwrEvalAlg`**：不
+============================================================
+user ts=1786590626328 len=56
+请QCM4490充电专家回答问题：PD 的电压电流请求（PDO）在哪里配置？想要 9V / 12V 档要改什么？
+============================================================
+assistant ts=1786590742344 len=3198
+# QCM4490 PD PDO（Sink 电压/电流请求）配置位置与 9V/12V 档修改
+
+## 1. 默认/现状
+QCM4490 的充电/PD 栈跑在 **ADSP battman** 上，Sink PDO 不是"请求时临时算的"，而是由平台配置表 `PDPoliciesCfg` 预先定义好，PE 层再按此向适配器发起 PD 请求。**默认配置里 9V/12V 档已经存在**：
+
+- `amss/ADSP.HT.5.7/adsp_proc/core/battman/usbtypec/lpm/src/pe.c` L110-L119：
+  ```c
+  pState->Context.Policies.Sink.Caps.PDOs[1] = policyCfg.uSinkCapsPDO2;   //Fixed-9V-3A
+  pState->Context.Policies.Sink.Caps.PDOs[2] = policyCfg.uSinkCapsPDO3;   //Fixed-12V-3A
+  pState->Context.Policies.Sink.Caps.PDOs[3] = policyCfg.uSinkCapsPDO4;   //Fixed-15V-3A
+  ```
+  即 **PDO1=5V，PDO2=9V/3A，PDO3=12V/3A，PDO4=15V/3A**。默认 `uSinkCapSize=5`（最多 7 个 PDO），9V/12V 档位空间充足。
+
+## 2. 主配置路径（权威文件）
+ADSP 侧每个平台一份配置表：
+
+- **文件**：`amss/ADSP.HT.5.7/adsp_proc/core/settings/battman/battmngr/config/<platform>/battmngrconfig_props.c`
+  （索引可见 `fillmore / clarence / waipio / netrani / palima` 等目录，**以你工程 ADSP 编译目标对应的那个为准**），L298-L309 附近：
+  ```c
+  .uSinkMaxVoltageMV = 21500,      /* sink max voltage */
+  .uSinkMaxCurrentMA = 5000,       /* sink max current */
+  .uSinkMaxPowerUW   = 120000000,  /* sink max power */
+  .uSinkCapSize      = 5,          /* max 7 */
+  .uSinkCapsPDO1     = 0x2601912…  /* ← 索引片段在此截断 */
+  ```
+- **结构定义**：`amss/ADSP.HT.5.7/adsp_proc/core/settings/battman/battmngr/interface/BattmngrBsp.h` L372-L409（`uSinkCapSize`、`uSinkCapsPDO1..7`）。
+- **消费链路**（改完谁生效）：
+  - `usbtypec/dpm/src/dpm.c` L1483-L1504：`BattMngr_os_get_devcfg("PDPoliciesCfg", 0, &policyCfg, sizeof(PDPoliciesCfgType))` —— 该 `battmngrconfig_props.c` 即编

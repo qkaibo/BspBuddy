@@ -21,6 +21,7 @@ import { InspirationPanel } from '../components/InspirationPanel'
 import { AssistantPanel } from '../components/AssistantPanel'
 import { AssistantSettings } from '../components/AssistantSettings'
 import { FeedbackPanel } from '../components/FeedbackPanel'
+import { AutomationPanel } from '../components/AutomationPanel'
 import { ModelConfigSettings } from '../components/ModelConfigSettings'
 import { ExpertModelCatalogPanel } from '../components/ExpertModelCatalogPanel'
 import { ContentShell } from '../components/ContentShell'
@@ -34,7 +35,7 @@ import type { Expert, ExpertTeam } from '../lib/expert-types'
 
 const ipc = createIpcClient()
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'expert-model-catalog' | 'feedback'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'expert-model-catalog' | 'feedback' | 'automation'
 
 export default function App() {
   const { messages, activePlan, isProcessing, mode, setMode, modelId, setModelId, sendMessage, stopAgent, setMessages } = useAgent()
@@ -362,6 +363,8 @@ export default function App() {
             <ExpertModelCatalogPanel onBack={() => setActiveView('settings')} />
           ) : activeView === 'feedback' ? (
             <FeedbackPanel onClose={handleNavigateToChat} />
+          ) : activeView === 'automation' ? (
+            <AutomationPanel onClose={handleNavigateToChat} />
           ) : hasMsg ? (
             <ChatPanel
               messages={messages}

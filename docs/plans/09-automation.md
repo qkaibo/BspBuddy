@@ -31,10 +31,17 @@
 
 **仅推送至 BspBuddy 小程序**，不是 IM/邮件。
 
+## 入口（主界面侧栏）
+
+- **不在一级导航**；从侧栏「更多」→「自动化」进入。
+- 一级导航中原「自动化」位置改为「知识库」（见 `agents-01` 侧栏约定）。
+
 ## 实现文件
 
 ```
+src/components/Sidebar.tsx           - 「更多」菜单入口
 src/components/AutomationPanel.tsx   - 自动化任务面板
+src/renderer/App.tsx                 - ViewType `automation` 渲染面板
 src/main/services/scheduler.ts       - 调度服务
 src/lib/automation-types.ts          - 自动化类型定义
 ```

@@ -4,7 +4,7 @@ import {
   Bell, ChevronDown, ChevronRight, Trash2, Share2,
   Archive, Edit3, Download, Pin,
   PanelLeftClose, SlidersHorizontal, User, Crosshair,
-  Network, Repeat, Grid3x3, Link, Sparkles, Mail,
+  Network, Repeat, Grid3x3, Link, Sparkles, Mail, BookOpen,
 } from 'lucide-react'
 
 interface Session {
@@ -16,7 +16,7 @@ interface Session {
   status?: 'in_progress' | 'completed' | 'failed' | 'pending' | 'planning' | 'archived'
 }
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback' | 'automation'
 
 interface Props {
   sessions: Session[]
@@ -32,7 +32,7 @@ const PRIMARY_NAV = [
   { id: 'assistant', label: '助理', icon: User, view: 'assistant' as ViewType },
   { id: 'projects', label: '项目', icon: Crosshair, view: 'projects' as ViewType },
   { id: 'experts-plugin', label: '专家·技能·连接器', icon: Network, view: 'experts' as ViewType },
-  { id: 'automation', label: '自动化', icon: Repeat, view: 'chat' as ViewType },
+  { id: 'knowledge', label: '知识库', icon: BookOpen, view: 'data' as ViewType },
 ]
 
 const AVATAR_MENU_ITEMS = [
@@ -106,6 +106,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
   const isNavActive = (id: string) => activeView === id
     || (id === 'assistant' && activeView === 'assistant-settings')
     || (id === 'experts-plugin' && (activeView === 'experts' || activeView === 'plugins'))
+    || (id === 'knowledge' && activeView === 'data')
     || (id === 'settings' && activeView === 'member-roles')
 
   const handleRename = (id: string) => {
@@ -318,7 +319,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
                 <Grid3x3 size={13} strokeWidth={1.75} />
               </span>
               <span>更多</span>
-              <span style={{ fontSize: 'var(--font-micro)', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>资料库·灵感</span>
+              <span style={{ fontSize: 'var(--font-micro)', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>自动化·灵感</span>
             </button>
             {moreMenuOpen && (
               <div
@@ -330,7 +331,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <SubMenuItem icon={FolderOpen} label="资料库" onClick={() => { onNavigate?.('data'); setMoreMenuOpen(false) }} />
+                <SubMenuItem icon={Repeat} label="自动化" onClick={() => { onNavigate?.('automation'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={Sparkles} label="灵感" onClick={() => { onNavigate?.('inspiration'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={Mail} label="邮箱" onClick={() => { onNavigate?.('mailbox'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={MessageSquare} label="反馈" onClick={() => { onNavigate?.('feedback'); setMoreMenuOpen(false) }} />
