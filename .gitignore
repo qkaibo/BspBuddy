@@ -5,6 +5,7 @@ node_modules/
 out/
 dist/
 release/
+website/bspbuddy-website-*.zip
 
 # Environment
 .env

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0d12" />
+  <meta name="description" content="BspBuddy — 领域专家系统。后台知识库经 MCP 接入，桌面与 IDE 召唤同一位专家：检索有出处，结论可拍板。" />
+  <title>BspBuddy — 领域专家工作台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">B</span>
+        BspBuddy
+      </a>
+      <nav class="nav-links" aria-label="主导航">
+        <a href="#why">为什么</a>
+        <a href="#knowledge">知识</a>
+        <a href="#how">机制</a>
+        <a href="#surfaces">接入</a>
+        <a href="#capabilities">能力</a>
+        <a href="#ecosystem">生态</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-ghost" href="#knowledge">知识库</a>
+        <a class="btn btn-primary" href="#cta">打开工作台</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">领域专家系统 · Domain Expert Platform</p>
+          <h1>领域专家，<em>带着知识</em>进工作流</h1>
+          <p class="lead">
+            后台搭好知识库，桌面与 IDE 召唤同一位专家——检索经 MCP，回答有出处，你来拍板。
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="#cta">打开桌面工作台 →</a>
+            <a class="btn btn-ghost btn-lg" href="#knowledge">了解知识库 →</a>
+          </div>
+          <p class="hero-note">桌面工作台 · IDE（Cursor MCP）· 知识库 Console · 可私有部署</p>
+        </div>
+
+        <aside class="diagram" aria-label="专家与知识、接入关系示意">
+          <div class="diagram-title">一次提问 · 架构概览</div>
+          <div class="flow">
+            <div class="stack">
+              <div class="chip">
+                <strong>Domain</strong>
+                <span>SOP · 排错 · 概念</span>
+              </div>
+              <div class="chip">
+                <strong>Baseline</strong>
+                <span>BSP · datasheet</span>
+              </div>
+              <div class="chip">
+                <strong>Project</strong>
+                <span>overlay · 私有配置</span>
+              </div>
+            </div>
+            <span class="arrow" aria-hidden="true">→</span>
+            <div class="expert-node">Expert<br />领域专家</div>
+            <div class="mcp-tag">MCP</div>
+            <div class="stack">
+              <div class="chip surface-chip">
+                <strong>Desktop</strong>
+                <span>对话 · 编排 · 审阅</span>
+              </div>
+              <div class="chip surface-chip">
+                <strong>IDE</strong>
+                <span>编码现场召唤专家</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="band" id="why">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Why · 为什么是专家</p>
+          <h2>同一个模型，换一套领域组织方式</h2>
+          <p>通用助手什么都答一点；领域专家带着分层知识与可执行 SOP，啃的是你项目里真正难的那一类事。</p>
+        </div>
+        <div class="why-grid">
+          <article class="why-item">
+            <h3>专家，而非万能分身</h3>
+            <p>按领域配置人设、技能与知识绑定。充电专家不会被当成通用聊天机器人。</p>
+          </article>
+          <article class="why-item">
+            <h3>知识在库，不在提示词里堆</h3>
+            <p>基线代码、datasheet、项目 overlay 在后台知识库；对话时经 MCP 检索，可追溯引用。</p>
+          </article>
+          <article class="why-item">
+            <h3>工作流在你日常工具里</h3>
+            <p>桌面工作台管专家与任务；IDE 通过 MCP 在编码现场问同一位专家。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="knowledge">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Knowledge · 后台知识库</p>
+          <h2>三层空间，冲突时项目说了算</h2>
+          <p>领域公共经验、基线 BSP 与手册、项目私有 overlay——入库在知识库侧，专家检索时按优先级合并。</p>
+        </div>
+        <div class="layers">
+          <div class="layer-list">
+            <article class="layer">
+              <div class="layer-rank">1</div>
+              <div>
+                <h3>Project · 项目私有</h3>
+                <p>overlay、DTS 改动、专属 FV / 原理图。项目间物理隔离，clarence 问不到别项配置。</p>
+              </div>
+              <span class="prio">最高优先</span>
+            </article>
+            <article class="layer">
+              <div class="layer-rank">2</div>
+              <div>
+                <h3>Baseline · 基线公共</h3>
+                <p>某版 BSP 公共代码与芯片 datasheet（如 SW5100 + PM7250B）。同基线多项目共享。</p>
+              </div>
+              <span class="prio">次优先</span>
+            </article>
+            <article class="layer">
+              <div class="layer-rank">3</div>
+              <div>
+                <h3>Domain · 领域公共</h3>
+                <p>跨项目 SOP、排错路径、概念说明——人沉淀的通用经验，不是某一版 BSP 私货。</p>
+              </div>
+              <span class="prio">兜底</span>
+            </article>
+          </div>
+          <aside class="merge-panel">
+            <div class="merge-step">
+              <span class="merge-dot"></span>
+              <div>
+                <strong>搜索优先级</strong>
+                <span>Project → Baseline → Domain</span>
+              </div>
+            </div>
+            <div class="merge-step">
+              <span class="merge-dot"></span>
+              <div>
+                <strong>MCP Bridge</strong>
+                <span>语义检索 · 门禁 scope · 引用回传</span>
+              </div>
+            </div>
+            <div class="merge-step">
+              <span class="merge-dot"></span>
+              <div>
+                <strong>Expert</strong>
+                <span>领域专家带着可见空间作答</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+        <div class="metrics">
+          <div class="metric"><strong>更准</strong>分层检索，直达相关</div>
+          <div class="metric"><strong>更稳</strong>基线可靠，经验可沉淀</div>
+          <div class="metric"><strong>更快</strong>优先匹配当前项目</div>
+          <div class="metric"><strong>更私</strong>项目知识安全隔离</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="how">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Mechanism · 机制</p>
+          <h2>四步：从专家到可拍板的结论</h2>
+          <p>你选专家、定项目上下文；检索与编排交给系统，最终决策在你手里。</p>
+        </div>
+        <div class="steps">
+          <article class="step">
+            <h3>选定领域专家</h3>
+            <p>如充电专家。人设、SOP、技能与知识空间已绑定。</p>
+          </article>
+          <article class="step">
+            <h3>挂上当前项目</h3>
+            <p>切换 project 后自动带上 Domain + Baseline + 本项目私有空间。</p>
+          </article>
+          <article class="step">
+            <h3>在桌面或 IDE 提问</h3>
+            <p>同一专家、同一 MCP 知识门禁；编码现场也能召唤。</p>
+          </article>
+          <article class="step">
+            <h3>审阅引用并拍板</h3>
+            <p>看见出处与成本，采纳、打回或继续追问。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="surfaces">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Surfaces · 接入</p>
+          <h2>同一专家，三种入口</h2>
+          <p>无论你在工作台、编辑器还是知识控制台，专家与知识上下文保持一致。</p>
+        </div>
+        <div class="surfaces">
+          <article class="surface">
+            <div class="surface-visual" aria-hidden="true">
+              <div class="fake-ui">
+                <div class="fake-cols">
+                  <div class="fake-side"></div>
+                  <div class="fake-main">
+                    <div class="fake-bar accent"></div>
+                    <div class="fake-bar"></div>
+                    <div class="fake-bar"></div>
+                    <div class="fake-bar" style="width:70%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="surface-body">
+              <h3>桌面工作台</h3>
+              <p>召唤专家、管理 SOP / Skill / 绑定，对话与任务编排的主入口。</p>
+            </div>
+          </article>
+          <article class="surface">
+            <div class="surface-visual" aria-hidden="true">
+              <div class="fake-ui" style="grid-template-columns: 1fr 0.42fr; display:grid;">
+                <div class="fake-main">
+                  <div class="fake-bar"></div>
+                  <div class="fake-bar" style="width:80%"></div>
+                  <div class="fake-bar accent"></div>
+                  <div class="fake-bar" style="width:60%"></div>
+                </div>
+                <div class="fake-chat"></div>
+              </div>
+            </div>
+            <div class="surface-body">
+              <h3>IDE · Cursor MCP</h3>
+              <p>在编码环境无缝协作，随时拿到专家级上下文与建议。</p>
+            </div>
+          </article>
+          <article class="surface">
+            <div class="surface-visual" aria-hidden="true">
+              <div class="fake-ui">
+                <div class="fake-bar accent" style="width:55%"></div>
+                <div class="fake-cols">
+                  <div class="fake-side"></div>
+                  <div class="fake-side"></div>
+                </div>
+                <div class="fake-bar" style="width:75%"></div>
+              </div>
+            </div>
+            <div class="surface-body">
+              <h3>知识库 Console</h3>
+              <p>学习、索引与三层空间管理在知识库侧；专家只消费已放行的知识。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="capabilities">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Capabilities · 能力</p>
+          <h2>你拿到的是一套可绑定的专家系统</h2>
+          <p>不是提示词玩具，而是人设、流程、工具与知识可配置、可复用的工作台。</p>
+        </div>
+        <div class="caps">
+          <article class="cap">
+            <div class="cap-num">01</div>
+            <h3>专家资源绑定</h3>
+            <p>SOP、Skill、MCP、知识空间、模型——按专家 Scope 管理，运行时统一进 Manifest。</p>
+          </article>
+          <article class="cap">
+            <div class="cap-num">02</div>
+            <h3>MCP 知识检索</h3>
+            <p>后台知识库负责索引与隔离；对话经 MCP 带 scope 检索，引用可回传。</p>
+          </article>
+          <article class="cap">
+            <div class="cap-num">03</div>
+            <h3>你是决策者</h3>
+            <p>下达目标、看过程与出处、随时介入。专家辅助，拍板在你。</p>
+          </article>
+        </div>
+        <div class="pill-row" aria-label="能力标签">
+          <span class="pill">多轮对话</span>
+          <span class="pill">SOP 执行</span>
+          <span class="pill">Skill / MCP</span>
+          <span class="pill">三层知识空间</span>
+          <span class="pill">引用可见</span>
+          <span class="pill">跨会话记忆</span>
+          <span class="pill">可私有部署</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="compare">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Your role · 你的角色</p>
+          <h2>从提问者，到带专家的工程师</h2>
+          <p>用通用 Chat 你得学会怎么问；用编码助手你还得说清怎么做；用 BspBuddy，你带着领域专家与知识库做事。</p>
+        </div>
+        <div class="compare">
+          <article class="role">
+            <div class="label">ChatGPT / Claude</div>
+            <h3>提示者</h3>
+            <p>上下文靠你贴，领域深度靠临时堆提示词。</p>
+          </article>
+          <article class="role">
+            <div class="label">Cursor / Codex</div>
+            <h3>指令者</h3>
+            <p>强在改代码；跨项目领域经验与基线手册不在默认射程。</p>
+          </article>
+          <article class="role featured">
+            <div class="label">BspBuddy</div>
+            <h3>带专家的工程师</h3>
+            <p>专家 + 分层知识 + Desktop/IDE；你定目标与项目，系统检索与辅助。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="ecosystem">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Ecosystem · 生态 · 规划中</p>
+          <h2>可沉淀的五类资产</h2>
+          <p>把打磨好的流程与团队配置留下来——自己用，或在租户内分享。</p>
+        </div>
+        <div class="eco">
+          <article class="eco-item">
+            <div class="en">SOP</div>
+            <h3>流程</h3>
+            <p>可执行的领域状态机</p>
+          </article>
+          <article class="eco-item">
+            <div class="en">Skill</div>
+            <h3>技能</h3>
+            <p>分析与操作能力包</p>
+          </article>
+          <article class="eco-item">
+            <div class="en">MCP</div>
+            <h3>工具</h3>
+            <p>知识库与外部系统</p>
+          </article>
+          <article class="eco-item">
+            <div class="en">Space</div>
+            <h3>知识空间</h3>
+            <p>Domain / Baseline / Project</p>
+          </article>
+          <article class="eco-item">
+            <div class="en">Team</div>
+            <h3>专家团</h3>
+            <p>一键复用团队配置</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta" id="cta">
+      <div class="wrap">
+        <h2>把下一件领域难事，交给专家。</h2>
+        <p>BspBuddy —— 领域专家，带着知识进工作流。</p>
+        <div class="cta-actions">
+          <a class="btn btn-primary btn-lg" href="#">下载桌面客户端</a>
+          <a class="btn btn-ghost btn-lg" href="#knowledge">查看知识分层</a>
+        </div>
+        <div class="badges">
+          <span>MCP</span>
+          <span>可私有部署</span>
+          <span>桌面 · IDE · 知识库</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-grid">
+      <div>
+        <strong style="color:var(--text)">BspBuddy</strong>
+        <div>领域专家系统。知识在库，专家在侧，工作流在桌面与 IDE。</div>
+        <div style="margin-top:0.5rem">© 2026 BspBuddy</div>
+      </div>
+      <div class="footer-links">
+        <a href="#how">协作机制</a>
+        <a href="#capabilities">核心能力</a>
+        <a href="#compare">角色对比</a>
+        <a href="https://modelcontextprotocol.io/" rel="noopener" target="_blank">MCP</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
