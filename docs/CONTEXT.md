@@ -35,6 +35,14 @@ _Avoid_：与 SOP 技能混称；把「加入我的技能」说成已经「绑�
 Agent 本地只保留壳 `SKILL.md`，执行前通过 runtime API 拉取最新主指令与资源。见 `skills-003`。
 _Avoid_：默认认为升版必须重下 ZIP。
 
+**规则（Policy Rule）**：
+对 Agent 的约束/规范文本（md）。在 BspBuddy 录入，经策略包绑定后由 IDE 同步。见 `policy-001`。
+_Avoid_：与 Skill（可选能力）、与平台引导 `agent-rules/*.mdc`（装 Skill 用）混称；不要做成 RD 自选 RulesHub。
+
+**策略包（Rule Pack）**：
+多条规则的有序集合，绑定到租户/项目/Mode/Expert 后下发。
+_Avoid_：规则商店货架。
+
 **SOP 技能（SOP Skill）**：
 图结构（节点+边）的状态机驱动技能。每个节点声明期望的用户信息、允许的操作和关联的能力引用。通过 **SOP 创作台**（蒸馏编辑器）从自然语言或文档生成。
 生命周期：draft → published → archived。

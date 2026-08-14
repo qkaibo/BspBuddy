@@ -15,6 +15,9 @@ from app.db.models import (
     MCPServer,
     ModelConfig,
     PersonaConfig,
+    PolicyBinding,
+    PolicyRule,
+    PolicyRulePack,
     Skill,
     SkillCategory,
     Tenant,
@@ -954,6 +957,7 @@ def seed_demo_data(session: Session) -> None:
     _seed_skill_categories(session)
     _seed_demo_store_general_skills(session)
     _backfill_general_skill_store_fields(session)
+    _seed_policy_rule_packs(session)
     session.flush()
     _publish_seeded_system_resources(session)
     seed_staffdeck_admin_gallery(session)
@@ -1123,6 +1127,229 @@ def _tool_url_with_base(url: str, base_url: str) -> str:
     if stripped.startswith("/"):
         return f"{base_url}{stripped}"
     return stripped
+
+
+def _seed_policy_rule_packs(session: Session) -> None:
+    """policy-001 demo: org baseline + project/mode/expert pack bindings."""
+    from app.policy.schema import content_hash
+
+    tenant_id = "tenant_demo"
+    # Stable ids so org vs expert can each own a published row with slug=no-secrets.
+    rules_spec = [
+        {
+            "id": "prule_seed_no_secrets_org",
+            "slug": "no-secrets",
+            "title": "禁止提交密钥与凭证",
+            "body_md": (
+                "# 禁止提交密钥\n\n"
+                "- 不要把 API Key、Token、密码写入仓库或聊天回显。\n"
+                "- 使用环境变量或本机密钥库。\n"
+            ),
+            "severity": "required",
+        },
+        {
+            "id": "prule_seed_prefer_pr",
+            "slug": "prefer-pr",
+            "title": "改动经 PR 审查",
+            "body_md": (
+                "# 代码审查\n\n"
+                "- 功能性改动应走 Pull Request。\n"
+                "- 说明动机与风险，避免直接推 main。\n"
+            ),
+            "severity": "required",
+        },
+        {
+            "id": "prule_seed_project_layout",
+            "slug": "project-layout",
+            "title": "仓库目录约定",
+            "body_md": (
+                "# 目录约定\n\n"
+                "- 业务代码放在约定包路径，勿随意新建顶层目录。\n"
+                "- 文档变更同步更新 docs/。\n"
+            ),
+            "severity": "recommended",
+        },
+        {
+            "id": "prule_seed_review_checklist",
+            "slug": "review-checklist",
+            "title": "Code Review 清单",
+            "body_md": (
+                "# Review 清单\n\n"
+                "- 检查边界条件与错误处理。\n"
+                "- 确认无调试残留与密钥泄漏。\n"
+            ),
+            "severity": "recommended",
+        },
+        {
+            "id": "prule_seed_expert_cite_mcp",
+            "slug": "expert-cite-mcp",
+            "title": "专家回复须标注 MCP 出处",
+            "body_md": (
+                "# MCP 引用\n\n"
+                "- 调用了 MCP 工具时，回复末尾标注服务器与工具名。\n"
+                "- 未实际调用则不要伪造引用。\n"
+            ),
+            "severity": "required",
+        },
+        {
+            "id": "prule_seed_no_secrets_expert",
+            "slug": "no-secrets",
+            "title": "禁止提交密钥与凭证（专家增强）",
+            "body_md": (
+                "# 禁止提交密钥（专家增强）\n\n"
+                "- 不要把 API Key、Token、密码写入仓库或聊天回显。\n"
+                "- 使用环境变量或本机密钥库。\n"
+                "- 专家侧额外要求：回复中也不要回显完整密钥。\n"
+            ),
+            "severity": "required",
+        },
+    ]
+
+    rule_ids: dict[str, str] = {}
+    for spec in rules_spec:
+        row = session.get(PolicyRule, spec["id"])
+        if not row:
+            row = PolicyRule(
+                id=spec["id"],
+                tenant_id=tenant_id,
+                slug=spec["slug"],
+                title=spec["title"],
+                body_md=spec["body_md"],
+                severity=spec["severity"],
+                status="published",
+                content_hash=content_hash(spec["body_md"]),
+            )
+            session.add(row)
+            session.flush()
+        else:
+            row.slug = spec["slug"]
+            row.title = spec["title"]
+            row.body_md = spec["body_md"]
+            row.severity = spec["severity"]
+            row.status = "published"
+            row.content_hash = content_hash(spec["body_md"])
+            row.updated_at = utc_now()
+            session.add(row)
+        rule_ids[spec["id"]] = row.id
+
+    packs_spec = [
+        {
+            "slug": "org-baseline",
+            "name": "公司基线",
+            "description": "租户强制规范",
+            "kind": "org_baseline",
+            "rule_ids": ["prule_seed_no_secrets_org", "prule_seed_prefer_pr"],
+            "version": "1.0.0",
+        },
+        {
+            "slug": "demo-project-standards",
+            "name": "Demo 项目规范",
+            "description": "示例仓库目录与结构",
+            "kind": "project",
+            "rule_ids": ["prule_seed_project_layout"],
+            "version": "1.0.0",
+        },
+        {
+            "slug": "mode-review",
+            "name": "Review Mode 叠加",
+            "description": "审查模式附加清单",
+            "kind": "mode",
+            "rule_ids": ["prule_seed_review_checklist"],
+            "version": "1.0.0",
+        },
+        {
+            "slug": "expert-qcm-charging",
+            "name": "QCM 充电专家叠加",
+            "description": "专家侧引用与密钥增强",
+            "kind": "expert",
+            "rule_ids": ["prule_seed_expert_cite_mcp", "prule_seed_no_secrets_expert"],
+            "version": "1.0.0",
+        },
+    ]
+
+    pack_ids: dict[str, str] = {}
+    for spec in packs_spec:
+        ids = [rule_ids[rid] for rid in spec["rule_ids"] if rid in rule_ids]
+        row = session.exec(
+            select(PolicyRulePack).where(
+                PolicyRulePack.tenant_id == tenant_id,
+                PolicyRulePack.slug == spec["slug"],
+            )
+        ).first()
+        if not row:
+            row = PolicyRulePack(
+                tenant_id=tenant_id,
+                slug=spec["slug"],
+                name=spec["name"],
+                description=spec["description"],
+                kind=spec["kind"],
+                rule_ids_json=ids,
+                version=spec["version"],
+            )
+            session.add(row)
+            session.flush()
+        else:
+            row.name = spec["name"]
+            row.description = spec["description"]
+            row.kind = spec["kind"]
+            row.rule_ids_json = ids
+            row.version = spec["version"]
+            row.updated_at = utc_now()
+            session.add(row)
+        pack_ids[spec["slug"]] = row.id
+
+    expert_id = "agent_1979a30222264971"
+    expert = session.get(AgentProfile, expert_id)
+    if not expert or expert.tenant_id != tenant_id:
+        expert = session.exec(
+            select(AgentProfile).where(AgentProfile.tenant_id == tenant_id)
+        ).first()
+        expert_id = expert.id if expert else "agent_demo_policy"
+
+    bindings_spec = [
+        {"pack": "org-baseline", "target_type": "tenant", "target_key": tenant_id, "priority": 0},
+        {
+            "pack": "demo-project-standards",
+            "target_type": "project",
+            "target_key": "github.com/demo/bspbuddy-app",
+            "priority": 0,
+        },
+        {"pack": "mode-review", "target_type": "mode", "target_key": "review", "priority": 0},
+        {
+            "pack": "expert-qcm-charging",
+            "target_type": "expert",
+            "target_key": expert_id,
+            "priority": 0,
+        },
+    ]
+    for spec in bindings_spec:
+        pack_id = pack_ids.get(spec["pack"])
+        if not pack_id:
+            continue
+        existing = session.exec(
+            select(PolicyBinding).where(
+                PolicyBinding.tenant_id == tenant_id,
+                PolicyBinding.pack_id == pack_id,
+                PolicyBinding.target_type == spec["target_type"],
+                PolicyBinding.target_key == spec["target_key"],
+            )
+        ).first()
+        if existing:
+            existing.enabled = True
+            existing.priority = spec["priority"]
+            existing.updated_at = utc_now()
+            session.add(existing)
+            continue
+        session.add(
+            PolicyBinding(
+                tenant_id=tenant_id,
+                pack_id=pack_id,
+                target_type=spec["target_type"],
+                target_key=spec["target_key"],
+                priority=spec["priority"],
+                enabled=True,
+            )
+        )
 
 
 def _seed_weather_general_skill(session: Session) -> None:

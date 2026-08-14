@@ -1204,3 +1204,58 @@ class MemoryRecord(SQLModel, table=True):
     metadata_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class PolicyRule(SQLModel, table=True):
+    """Business coding/policy rules for IDE sync (policy-001). Not agent-rules mdc.
+
+    Slug is unique *within a resolved set* (higher-priority pack wins), not globally:
+    org / expert packs may each own a published row with the same slug and different body.
+    """
+
+    __tablename__ = "policy_rules"
+    __table_args__ = (Index("ix_policy_rule_tenant_slug", "tenant_id", "slug"),)
+
+    id: str = Field(default_factory=lambda: new_id("prule"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    slug: str = Field(index=True)
+    title: str
+    body_md: str
+    severity: str = Field(default="required", index=True)
+    status: str = Field(default="published", index=True)
+    content_hash: str = Field(default="", index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class PolicyRulePack(SQLModel, table=True):
+    __tablename__ = "policy_rule_packs"
+    __table_args__ = (UniqueConstraint("tenant_id", "slug", name="uq_policy_pack_tenant_slug"),)
+
+    id: str = Field(default_factory=lambda: new_id("ppack"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    slug: str = Field(index=True)
+    name: str
+    description: Optional[str] = None
+    kind: str = Field(default="project", index=True)
+    rule_ids_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    version: str = Field(default="1.0.0")
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class PolicyBinding(SQLModel, table=True):
+    __tablename__ = "policy_bindings"
+    __table_args__ = (
+        Index("ix_policy_binding_target", "tenant_id", "target_type", "target_key"),
+    )
+
+    id: str = Field(default_factory=lambda: new_id("pbind"), primary_key=True)
+    tenant_id: str = Field(index=True)
+    pack_id: str = Field(index=True)
+    target_type: str = Field(index=True)
+    target_key: str = Field(default="", index=True)
+    priority: int = Field(default=0, index=True)
+    enabled: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)

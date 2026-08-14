@@ -89,6 +89,7 @@ related: [agents-001-api]
 | 24 | [a2a-delegation](plans/agents-03-a2a-delegation.md) | A2A 专家委托协议：本地 Sidecar → 服务器端专家 Agent 委托 | P0 | 🟡 |
 | 24-1 | [a2a-access-token](plans/agents-03-1-a2a-access-token.md) | A2A 接入 Token：设置内签发 / 列表 / 吊销，供 IDE 调 `/a2a/*` | P0 | ✅ |
 | 25 | [enterprise-skill-store](plans/skills-01-enterprise-skill-store.md) | 企业技能商店 + L1–L3 + Runtime + 轻量排行榜（Phase A–E） | P1 | ✅ |
+| 26 | [rule-pack-policy](plans/policy-01-rule-pack-api.md) | 规则策略包绑定 + resolved API（IDE 同步） | P0 | ✅ |
 
 > 进度看板即上表。`specs/` 已废弃，勿再引用。  
 > **权限分轨：** [auth-01](plans/auth-01-access-control.md) = 身份+RBAC+资源 ACL 的身份来源；[10-permission](plans/10-permission.md) = Agent Permission Modes（工具沙箱）。勿混名。
@@ -111,6 +112,7 @@ related: [agents-001-api]
 | skills-001 | [企业技能商店 — 发现、详情与导入发布](prd/skills-001-discovery-and-detail.md) | skills-001-api | 🟢 实现完成（L2 自测过；桌面 L3 待审查） |
 | skills-002 | [技能访问分级与授权（L1/L2/L3）](prd/skills-002-access-levels.md) | skills-002-api | 🟢 门禁 + 申请/审批 UI（L2 过；L3 待审查） |
 | skills-003 | [Agent 一键安装与 Runtime 协议](prd/skills-003-agent-install-runtime.md) | skills-003-runtime | 🟢 runtime/Token（Cursor 写壳 L3 待审查） |
+| policy-001 | [规则策略包绑定与 IDE 自动同步](prd/policy-001-rule-pack-binding.md) | [policy-001-api](tech-spec/policy-001-api.md) | ✅ Phase A API |
 | marketing-001 | [官网落地页](prd/marketing-001-landing.md) | — | 🟡 静态站初版（`website/`） |
 
 ---
@@ -129,6 +131,7 @@ related: [agents-001-api]
 | skills-001-api | [企业技能商店](tech-spec/skills-001-discovery-and-detail.md) | skills-001 | 🟢 已实现 |
 | skills-002-api | [技能访问分级与授权](tech-spec/skills-002-access-levels.md) | skills-002 | 🟢 已实现 |
 | skills-003-runtime | [Agent 安装与 Runtime](tech-spec/skills-003-agent-install-runtime.md) | skills-003 | 🟢 已实现（Loop 热更新延期） |
+| policy-001-api | [规则策略包 API](tech-spec/policy-001-api.md) | policy-001 | ✅ Phase A |
 
 ---
 

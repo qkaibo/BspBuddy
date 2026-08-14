@@ -114,6 +114,7 @@ def _migrate_sqlite_skill_schema() -> None:
         _migrate_expert_model_catalog_schema(conn, inspector, tables)
         _migrate_general_skill_store_schema(conn, inspector, tables)
         _migrate_agent_skill_token_purpose_schema(conn, inspector, tables)
+        _migrate_policy_rule_slug_index(conn, tables)
 
         if "users" in tables:
             user_columns = {column["name"] for column in inspector.get_columns("users")}
@@ -1922,6 +1923,73 @@ def _migrate_agent_skill_token_purpose_schema(conn, inspector, tables: set[str])
         text(
             "UPDATE agent_skill_tokens SET purpose = 'skill_runtime' "
             "WHERE purpose IS NULL OR purpose = ''"
+        )
+    )
+
+
+def _migrate_policy_rule_slug_index(conn, tables: set[str]) -> None:
+    """policy-001: allow same slug across packs (higher kind overrides body)."""
+    if "policy_rules" not in tables:
+        return
+    # Table-level UNIQUE cannot be dropped with DROP INDEX on SQLite — rebuild.
+    row = conn.execute(
+        text("SELECT sql FROM sqlite_master WHERE type='table' AND name='policy_rules'")
+    ).first()
+    sql = (row[0] if row else "") or ""
+    if "uq_policy_rule_tenant_slug" not in sql and "UNIQUE (tenant_id, slug)" not in sql:
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_policy_rule_tenant_slug "
+                "ON policy_rules (tenant_id, slug)"
+            )
+        )
+        return
+
+    conn.execute(text("DROP TABLE IF EXISTS policy_rules_new"))
+    conn.execute(
+        text(
+            """
+            CREATE TABLE policy_rules_new (
+                id VARCHAR NOT NULL,
+                tenant_id VARCHAR NOT NULL,
+                slug VARCHAR NOT NULL,
+                title VARCHAR NOT NULL,
+                body_md VARCHAR NOT NULL,
+                severity VARCHAR NOT NULL,
+                status VARCHAR NOT NULL,
+                content_hash VARCHAR NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id)
+            )
+            """
+        )
+    )
+    conn.execute(
+        text(
+            """
+            INSERT INTO policy_rules_new (
+                id, tenant_id, slug, title, body_md, severity, status,
+                content_hash, created_at, updated_at
+            )
+            SELECT
+                id, tenant_id, slug, title, body_md, severity, status,
+                content_hash, created_at, updated_at
+            FROM policy_rules
+            """
+        )
+    )
+    conn.execute(text("DROP TABLE policy_rules"))
+    conn.execute(text("ALTER TABLE policy_rules_new RENAME TO policy_rules"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_policy_rules_tenant_id ON policy_rules (tenant_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_policy_rules_slug ON policy_rules (slug)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_policy_rules_severity ON policy_rules (severity)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_policy_rules_status ON policy_rules (status)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_policy_rules_content_hash ON policy_rules (content_hash)"))
+    conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_policy_rule_tenant_slug "
+            "ON policy_rules (tenant_id, slug)"
         )
     )
 

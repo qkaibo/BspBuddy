@@ -24,6 +24,7 @@ from app.api import (
     mock,
     model_configs,
     persona,
+    policy,
     scheduled_tasks,
     sessions,
     skills,
@@ -90,6 +91,7 @@ app.include_router(general_skills.router)
 app.include_router(general_skills_access.router)
 app.include_router(skills_extras.router)
 app.include_router(agent_rules.router)
+app.include_router(policy.router)
 app.include_router(knowledge_bases.router)
 app.include_router(knowledge.router)
 app.include_router(skills.router)
