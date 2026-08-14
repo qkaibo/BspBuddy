@@ -1,0 +1,220 @@
+
+整理来源：
+1. target 仓 + amss 仓中的充电/USB 相关提交；
+2. 高通官方《QCM4490/QCS4490/CQ4390M/CQ4390S PMIC Software User Guide (80-50439-100)》充电相关章节（已跳过电量计部分，本项目使用外部电量计）；
+3. 充电/USB 开发领域通用问题拓展。
+  
+3. 定位：假设一名其他领域的工程师，第一次接手本项目的充电/USB 模块，开发过程中可能会向 AI / 老同事提出的问题。
+
+
+---
+
+第一部分：基于历史提交的问题
+
+1.1 架构与代码位置
+1. 这个项目的充电整体架构是什么？哪些逻辑跑在 ADSP（battmngr），哪些跑在 kernel（qti_battery_charger/pmic_glink），两边怎么通信？
+2. qti_battery_charger和power_supply子系统的关系？
+3. kernel 侧 battery_chg_dev 里的 property id和 ADSP 侧的 glink property 是怎么一一对应打通的？新增一个节点需要改哪几处（target [x/2] + amss [x/2]）？
+4. 一个 sysfs 节点从用户空间写入到 ADSP 真正执行动作（如禁充）的完整调用链是什么？
+  
+1.2 JEITA 与温度控制
+5. jeita 各区间（critical cold / hard cold / soft cold / soft warm / hard hot / critical hot）的温度阈值在哪里配置？怎么改成我们要的值？
+6. 每个 jeita 区间对应的 FCC/FV 补偿在哪里配置？soft 区的 FCC 降流和 FV 降压具体是怎么生效的？
+7. 充电状态分哪几种，状态上报 NOT_CHARGING 和 DISCHARGING 的区别是什么？
+8. 怎么增加假温度节点用来模拟各个温度的限流停充策略？
+  
+1.3 充电电压 / 电流参数
+9. 充电截止电压（float voltage，FV）在哪里配置？整机默认是多少，怎么改成 4.1V / 4.45V？
+10. 充电截止电流（iterm）在哪里配置，怎么定值？iterm 设置不当会导致什么问题（提前终止/充不满）？
+11. 最大充电电流（FCC）和输入限流（ICL）在哪里配置？不同充电类型（SDP/DCP/PD/DCIN/Pogo）的输入限流（ICL）分别在哪里设定？
+12. OTG 输出电流在哪里配置？
+13. DCIN 路径的电压/电流上限（dcin_voltage_max_mv / dcin_current_max_ma）在哪里配置，和普通 USB 路径有什么区别？
+  
+  
+1.4 定时器与终止逻辑
+14. safety timer怎么配置的
+15. tdone timer 是什么？和 safety timer 是什么关系？
+16. 回充（recharge）条件在哪里配置？SOC 掉多少、电压掉多少会触发回充？
+17. 充电终止（TERMINATION）的判定条件是什么？
+  
+1.5 Pogo 充电
+18. Pogo pin 插拔检测是怎么做的（硬件中断还是轮询）？
+19. 为什么 Pogo 插入要显示"无线充电中"？这个 UI 类型映射在哪里做的？
+20. off-mode（关机态）Pogo 充电怎么使能？关机状态下 ADSP 的充电任务是怎么跑起来的？
+21. battmngr状态机更新逻辑是什么？
+  
+1.6 KPOC / LED / 开机阈值
+22. 关机充电（KPOC）时 LED 怎么控制？
+23. 关机充电动画怎么修改，资源在哪里配置？
+24. 低电开机（boot to HLOS）电压阈值 3650mV 在哪里配置？BootToHLOSThresholdInMv、DCInBootToHLOSThresholdInMv、core-dbc-threshold 三者分别是什么阶段用的？
+25. 关机电压（低电自动关机阈值）在哪里配置？
+1.7 电量计配置
+26. 适配三方电量计，要做哪些配置
+1.7 USB配置
+27. USB 眼图参数怎么修改
+
+---
+
+第二部分：基于官方 PMIC 充电软件框架的问题
+
+2.1 充电参数配置（battmngrconfig_props.c）
+27. ADSP 充电软件的可配置项集中在哪个文件？这些配置是在什么时机（初始化链路）被加载生效的？
+28. Battery Manager BSP 配置里的充电 heartbeat timer（30s）和放电 heartbeat timer（5min）分别控制什么？改大了会有什么影响？
+29. cable event poll timer（40s）是干什么用的？为什么插线检测需要轮询？
+30. vbatt 平均采样数（2 samples）是做什么的？调大/调小对充电终止判断有什么影响？
+31. SOC linearization 是什么？convergent point（500）和 min point（750）这两个值代表什么含义，单位是什么？
+32. watchdog timer（64s）是喂哪里的狗？如果软件卡死没喂狗，硬件会怎么处理？
+33. "Enable Step charging + Jeita" 开关关掉后充电行为会有什么变化？什么场景需要关掉？
+  
+2.2 JEITA 软件配置细节
+34. JEITA 配置里的 "use HW Jeita"（值为 2）是什么模式？HW JEITA 和 SW JEITA 有什么区别，各适用什么场景？
+35. JEITA 表为什么有两份（normal battery ID 和 unknown battery）？电池 ID 识别失败时走哪张表？
+36. critical cold/hot 与 hard cold/hot 的行为差异是什么？"not operational" 具体指什么（关机？只禁充？）
+37. soft 区的 FCC HW compensation 和 FV HW compensation 是软件算的还是硬件自动执行的？两者叠加时最终值怎么算？
+  
+2.3 热缓解（Thermal Mitigation）
+38. 充电器 die 温度、整机 skin 温度、Type-C 口温度、并行充电器温度这四路热缓解的高低阈值分别在哪里配置？
+39. 热缓解触发后是降 FCC、降 ICL 还是停充？high 和 low 阈值之间有没有迟滞逻辑，怎么防止在阈值附近反复抖动？
+40. 各温度传感器分别接在哪个 ADC 通道（AMUX_THM / USB_THER / SMB_TEMP）？
+  
+2.4 维护充电 / 回充
+41. 回充的 SOC delta（5%）和 delta Vfloat（50mV）两个条件是"或"还是"与"的关系？哪个优先触发？
+42. recharge termination current（300mA）和正常 iterm（100mA）为什么不一样？
+43. Aged Battery Compensation 是什么？怎么判断电池老化？老化后 FV 补偿 100mV、iterm 补偿 50mA 的依据是什么？
+  
+2.5 死电池充电（Dead Battery / XBL / UEFI）
+44. 电池电压极低（死电池）时系统的充电启动流程是怎样的？XBL 阶段和 UEFI 阶段各负责充到什么阈值？
+45. 死电池充电的 bootup threshold 和 powerup threshold 应该怎么选取？选低了/选高了分别会出现什么问题（开机重启循环？）？
+46. XBL 阶段充电软件是锁定的，OEM 能改哪些配置项？配置放在哪个目录（boot_images/boot/Settings）？
+47. skip-loader-dbc、skip-core-dbc 是什么？什么情况下要跳过 DBC？
+48. 死电池充电时的 sign of life 是 LED，UEFI 阶段才点亮屏幕——这段显示策略在哪里控制？
+49. UEFI 阶段的 OsStandardBootSocThreshold 是按 SOC 还是按电压决定开机？和 BootToHLOSThresholdInMv 谁先生效？
+50. XBL 把电池充到阈值后为什么要 reboot 一次再进 HLOS，而不是直接引导？
+  
+2.6 硬件特性 / 输入路径
+51. APSD（自动充电类型检测）是怎么识别 SDP/CDP/DCP 的？识别结果在哪里能读到？识别错误怎么调试？
+52. AICL（自动输入限流）是怎么工作的？它会自己把 ICL 往下调吗？AICL 调低之后怎么恢复？
+53. USB_IN 的工作电压范围（3.6~13.2V，abs max 28V）超压时硬件靠什么保护？
+54. DC_IN 和 USB_IN 同时存在时优先级怎么判定？DC_IN 接在 MID_CHG 节点为什么能降低损耗？
+55. BATFET 是什么？ship mode 和 AFP mode 分别是什么，如何进入/退出？整机存储运输前该进哪个模式？
+56. Battery Supplement Mode（BSM）是什么？系统瞬时电流超过 buck 能力时电池补电是怎么触发的？
+57. Kelvin sensing（差分电池电压采样）是干什么的？板端走线阻抗大会对 CC 充电时长产生什么影响？
+58. 涓流充电（trickle charging）在什么电压区间触发？电流多大？
+59. 电池缺失检测（battery missing）是怎么实现的？检测误报会导致什么现象？
+60. 并行充电（SMB139x / 双充）在本平台有没有用？如果启用，主从充电器的电流分配在哪里配置？
+  
+2.7 kernel 侧接口（power supply / pmic glink）
+61. kernel 侧 qti_battery_charger 驱动是怎么和 ADSP 充电固件通信的？glink channel 名字、subsys-name 在 dtsi 里怎么配？
+62. battery power supply 上能读到哪些属性（status/health/capacity/voltage_max/current_now…）？哪些是只读哪些可写？
+63. charge_control_limit 属性写下去后 ADSP 是怎么处理的？和直接改 FCC 有什么区别？
+64. USB power supply 的 INPUT_CURRENT_LIMIT 属性为什么只允许对 SDP 生效？USB/PD 驱动改 ICL 应该走什么接口？
+65. USB_TYPE 属性报出来的 HVDCP / PD / PPS 类型是怎么从 ADSP 传上来的？
+66. ADSP crash（subsys restart）后充电驱动怎么恢复状态？会不会丢充电状态导致一直限流？
+  
+2.8 USB PD / Type-C
+67. Type-C / PD 协议栈为什么跑在 ADSP 而不是 kernel？HLOS 是通过什么协议（UCSI over Glink）和它交互的？
+68. DPM / LPM / TCPC 三个模块各负责什么？改 PD 策略（如电压档位请求）应该改哪一层？
+69. PD 的电压电流请求（PDO）在哪里配置？想要 9V / 12V 档要改什么？
+70. INOV 是什么？Battery Manager 向 PD 栈请求电压电流的机制是怎样的？
+71. VCONN 是做什么的？1.5W 的 VCONN 供电能力对带 DP Alt Mode 的线材有什么要求？
+72. Liquid Presence Detection（液体检测）基于 SBU1/2 阻抗，这个功能在哪里使能？误触发怎么处理？
+73. CC 方向（orientation）在 ADSP 哪里判定？正反插后哪些逻辑依赖这个方向？
+  
+2.9 调试手段
+74. 怎么通过 adb 读 PM7250B 充电芯片寄存器（regmap 0-08）？efuse 烧掉之后还能读吗，走哪个通道（2-08）？
+75. 怎么用 QXDM 抓 ADSP 充电日志（CHGPD log mask）？mask 文件怎么下发到设备？
+76. 充电相关的中断（USB_PLUGIN、UVLO、OVLO、VBAT_OV、TEMPST_CHANGED…）都在哪个文件注册？排查"插线无反应"应该先看哪几个中断？
+77. 充电状态异常时，BCS、ICM、AGGREGATOR 三个模块应该分别看什么信息？FCC/ICL/FV 的多个 voter 冲突时怎么确认最终生效值是谁投的？
+  
+
+---
+
+第三部分：充电开发通用问题
+
+3.1 充电基础原理
+78. 锂电池的 CC-CV 充电原理是什么？CC 阶段和 CV 阶段的切换条件是什么？
+79. float voltage 为什么不能随便设高？4.2V、4.35V、4.4V、4.45V 电芯有什么区别，配错了会怎样（鼓包/循环寿命下降）？
+80. 充电电流大小对电池循环寿命、充电时间、发热分别有什么影响？C 倍率是什么概念？
+81. 充电效率（充入容量/放出容量）一般是多少？剩下的能量去哪了？怎么评估整机充电热损耗？
+82. 为什么低温下大电流充电会析锂？析锂对电池安全意味着什么？
+  
+3.2 快充协议
+83. QC2.0 / QC3.0 / QC4+ / QC5 各是什么原理？Class A/B 电压档有什么区别？本项目支持到哪个版本？
+84. USB PD 3.0 的固定 PDO 和 PPS（可编程电源）有什么区别？为什么大功率快充都要走 PPS？
+85. PD 充电时 VBUS 升到 9V/12V 后，插拔时序上有哪些安全要求（hard reset、放电电阻）？
+86. 私有快充协议（如 UFCS、各大手机厂商协议）和 QC/PD 的兼容策略是什么？多协议适配器插上来优先级怎么定？
+87. 怎么确认设备实际协商到了哪个电压档位、多大电流？在哪里读 VBUS 电压和 ICL？
+88. 适配器能力不足导致 VBUS 跌落（collapse）时，系统是怎么自动降流的？UVLO 阈值在哪里配？
+89. 充电协议识别失败（一直按 5V/500mA SDP 充）常见的硬件/软件原因有哪些？
+  
+3.3 充电策略
+90. step charging（分阶段充电）是什么？按 SOC 分段设不同 FCC 的目的是什么，表在哪里配？
+91. 高 SOC 段（如 80% 以上）为什么要降电流？"充到 80% 保护电池"这类功能怎么实现？
+92. 边充边玩（system load 大）时，power path 是怎么工作的？电池不充电但也不放电的状态怎么判定？
+93. 充电终止后一直插着线，电池自放电到什么程度会回充？长期满电浮充对电池有什么影响，业界怎么规避（定时复充/截止电压下调）？
+94. 夜间充电/智能充电（先充到 80%，起床前再充满）这类功能要在哪一层实现？
+95. 多个电流投票者（thermal、jeita、用户设置、系统限流）同时存在时，FCC/ICL 的聚合规则（取最小值？）是什么，怎么调试最终生效值？
+  
+3.4 温度与安全保护
+96. 整机有几路温度传感器（电池 NTC、充电 IC die、主板 skin、USB 口）？各自采样通道和换算公式（100K NTC 表）在哪里？
+97. 温度读数跳变/读数为 -273 或异常高温，通常是什么硬件问题（NTC 虚焊/分压电阻错）？软件上怎么做防抖和容错？
+98. JEITA 规范要求的完整温度区间是什么？我们产品定义的温度规格和 JEITA 默认值差异在哪里？
+99. 充电 IC 过温（die temp）自动降流的硬件 thermal loop 是怎么工作的？和软件热缓解谁先生效？
+100. 电池过压（VBAT_OV）发生时硬件会做什么？软件收到中断后应该怎么处理？
+101. 充电回路短路、反灌电、VBUS 对地短路等极端故障，硬件上有哪些保护机制（fuse、OVP FET）？
+102. 进水/液体检测误报导致不能充电，产线或售后怎么处理？有没有强制绕过手段？
+  
+3.5 电池管理与显示（与外部电量计交互）
+103. 外部电量计（I2C）上报的电压/电流/SOC，和充电 IC 内部 ADC 读值不一致时以谁为准？
+104. SOC 跳变（充电时突然从 30% 跳到 50%）一般是什么原因？充电场景下 SOC 平滑策略怎么做？
+105. 充电时显示电量和实际容量不一致（显示 100% 但拔掉立刻掉到 98%），怎么调整 UI 映射（capacity 上报策略）？
+106. 电池老化（SOH）怎么评估？内阻增大对充电终止判定有什么影响？
+107. 电池认证（battery ID / 加密认证芯片）失败时充电策略是什么（限流/禁充/仅关机充）？
+  
+3.6 USB Type-C / OTG / 数据功能
+108. Type-C 口的 DRP（双角色）策略怎么配？设备作为 source 给外设供电的使能条件是什么？
+109. OTG 带 U 盘/手柄时，充电和 OTG 冲突怎么处理（插着充电器还能不能当 host）？
+110. data role swap（充电时能否传数据）和 power role 的关系是什么？
+111. Type-C 音频（模拟耳机）和充电同时使用怎么实现？CC/SBU 复用逻辑在哪里？
+112. USB 数据线质量差（D+ /D- 接触不良）导致 APSD 识别成 SDP 限流 500mA，怎么区分是线的问题还是口的问题？
+113. USB 眼图/信号质量测试不通过时，PHY 调参（pre-emphasis、squelch 等）的流程是什么？
+  
+3.7 无线充电 / 特殊充电形态
+114. 本项目 Pogo 触点充电的电流路径和保护（触点过温、触点压降大）和普通 USB 充电有哪些差异？
+115. 磁吸/触点充电插拔瞬间的电弧、接触抖动，软件上怎么做去抖（debounce 时间配多少）？
+116. 如果将来要加 Qi 无线充电，WLC 接收端的检测、FOD（异物检测）和有线充电的状态机如何共存？
+117. 反向充电（本设备给耳机/手表充电）需要什么硬件条件？输出限流和过温保护怎么做？
+  
+3.8 关机充电 / 低电场景
+118. 关机充电时整机功耗预算是多少？关机态下屏幕/LED 显示电量由谁驱动？
+119. 低电（<5%）时为什么要限制某些功能（禁止开机、提示先充电）？阈值在哪一层判断（UEFI/kernel/framework）？
+120. 电池完全耗尽后插上充电器，从黑屏到出现充电动画的时间预期是多少？每个阶段（DBC→UEFI→HLOS）耗时怎么优化？
+121. 低温（-10℃）下电池电压采样偏低导致无法开机，怎么处理（预热充电/提高开机阈值）？
+  
+3.9 测试、认证与产线
+122. 充电整机认证（CE/FCC/UL、电池 CB 认证）对软件有哪些硬性要求（如 JEITA 必须符合、温度保护必须冗余）？
+123. 充电温升测试（充电 IC、接口、电池表面温度）的标准测试条件是什么？超标时的软件降流方案怎么定？
+124. 产线校准（电池 ID 读取、NTC 校准、充电电流校准）的工装流程是什么？校准数据存在哪里？
+125. 怎么用可编程电源/电子负载做充电曲线测试？判断充电曲线是否正常的依据是什么（CC 时长、CV 时长、iterm）？
+126. 老化测试（循环充放电 500 次后容量保持率）中软件需要做哪些配合（日志记录、循环计数）？
+127. 充电兼容性测试（不同品牌适配器/线材矩阵）出现个别适配器不快充，怎么定位是适配器问题还是我们协议栈问题？
+  
+3.10 常见异常场景排查
+128. 插线不充电（无充电图标），排查顺序是什么（中断→APSD→ICL→FCC→charger enable 寄存器）？
+129. 充电断断续续（充电图标反复出现消失），怎么区分是线材接触问题、UVLO 抖动还是软件状态机问题？
+130. 充电慢（标称快充只跑 5V/1A），从哪些环节逐层排查（协议协商、热缓解、jeita、AICL、voter）？
+131. 充电时发热严重烫手，软件侧有哪些降功耗手段（降 FCC、降 VBUS 档位、限制系统负载）？
+132. 充到某个百分比就不动了（如一直 99%），怎么区分是 iterm 设置、FV 补偿还是 UI 显示问题？
+133. 拔线后充电状态不复位、电量图标残留，kernel 侧哪个模块负责状态清理？
+134. ADSP 重启（chargerPD crash）后充电中断、ICL 卡在 500mA，怎么复现和定位 crash 原因？
+135. 充电时触摸/音频/射频出现干扰（噪声），充电开关频率（switching freq）和展频在哪里配置？
+136. 长期满电插电使用（车机/IoT 场景）电池鼓包风险，怎么用软件策略规避（限制 FV 到 4.1V、周期性浅充浅放）？
+  
+3.11 日志与工具链
+137. 充电相关要看哪些日志（ADSP 侧 Trace/QXDM CHGPD log、kernel 侧 dmesg/logcat、UEFI 串口日志）？各自怎么导出？
+138. 充电全链路的关键信号（VBUS、VBAT、ICL、FCC、JEITA zone、charger state）怎么一次性抓取并画曲线？
+139. pmic glink 消息（power_supply/charger 类型）的格式定义在哪？怎么抓 glink 原始报文分析？
+140. 有哪些现成的 adb 命令/sysfs 节点可以做充电自检（读类型、读限流、读寄存器、强制禁充）？
+  
+
+---
