@@ -56,12 +56,21 @@ def build_install_prompt(
     runtime_url: str,
     rules_url: str,
 ) -> str:
-    platform_label = "Cursor" if platform == "cursor" else "BspBuddy"
+    if platform == "cursor":
+        platform_label = "Cursor"
+        skills_hint = f".cursor/skills/{skill.slug}/SKILL.md"
+    elif platform == "tsbuddy":
+        platform_label = "TsBuddy"
+        skills_hint = f".kilo/skills/{skill.slug}/（基于 Kilo 引擎发现路径）"
+    else:
+        platform_label = "BspBuddy"
+        skills_hint = "产品内「我的技能 / 安装到专家」（不只写磁盘）"
     return f"""请帮我安装 BspBuddy 技能：{skill.slug}
 
 平台：{api_base}
 技能入口：{runtime_url}
 目标 Agent：{platform_label}（--platform {platform}）
+落盘目标：{skills_hint}
 
 若你尚未加载 BspBuddy Skills 规则，请先 GET {rules_url} 学习规则，
 然后按规则完成 {skill.slug} 的安装与执行。

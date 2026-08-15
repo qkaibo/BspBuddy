@@ -5,6 +5,7 @@ import logging
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -13,6 +14,11 @@ from app.db.models import User, UserAvatar, utc_now
 from app.security.auth import create_access_token, get_current_user, hash_password, verify_password
 from app.security.permissions import MEMBER_ROLE, is_admin_user
 from app.security.tenant import ensure_tenant
+from app.services.portal_sso import (
+    find_or_create_portal_user,
+    introspect_portal_code,
+    resolve_tenant_id,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +70,18 @@ class LoginResponse(BaseModel):
     user: UserRead
 
 
+class PortalLoginRequest(BaseModel):
+    code: str
+    tenant_id: Optional[str] = None
+
+
+class PortalLoginResponse(BaseModel):
+    token: str
+    user: UserRead
+    tenant_id: str
+    return_url: str = "/"
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(request: LoginRequest, db: Session = Depends(get_session)) -> LoginResponse:
     ensure_tenant(db, request.tenant_id)
@@ -81,6 +99,137 @@ def login(request: LoginRequest, db: Session = Depends(get_session)) -> LoginRes
         token=create_access_token(user),
         user=_user_read(user, _avatar_pointer_for(db, user.id)),
     )
+
+
+@router.post("/portal", response_model=PortalLoginResponse)
+def portal_login(request: PortalLoginRequest, db: Session = Depends(get_session)) -> PortalLoginResponse:
+    """Portal 静默换票：验一次性 portal_code → 按 feishu_union_id 映射/建户 → Buddy JWT。"""
+    code = (request.code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="code is required")
+
+    identity = introspect_portal_code(code, target="bspbuddy")
+    tenant_id = resolve_tenant_id(db, request.tenant_id)
+    user = find_or_create_portal_user(db, tenant_id=tenant_id, identity=identity)
+    return PortalLoginResponse(
+        token=create_access_token(user),
+        user=_user_read(user, _avatar_pointer_for(db, user.id)),
+        tenant_id=tenant_id,
+        return_url=identity.get("return_url") or "/",
+    )
+
+
+# Portal SSO 落地页（对应契约 {BspBuddy}/auth/sso?code=…）
+sso_router = APIRouter(tags=["auth-sso"])
+
+
+@sso_router.get("/auth/sso", response_class=HTMLResponse)
+def portal_sso_page(
+    code: Optional[str] = Query(None),
+    return_url: Optional[str] = Query("/"),
+    tenant_id: Optional[str] = Query(None),
+) -> HTMLResponse:
+    """最小 SSO 页：用 code 调 /api/auth/portal，展示结果（对接验证用）。"""
+    safe_return = (return_url or "/").replace("<", "").replace(">", "").replace('"', "")
+    safe_tenant = (tenant_id or "").replace("<", "").replace(">", "").replace('"', "")
+    safe_code = (code or "").replace("<", "").replace(">", "").replace('"', "")
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BspBuddy · Portal SSO</title>
+  <style>
+    body {{ font-family: "Segoe UI", "PingFang SC", sans-serif; margin: 0; background: #fafafa; color: #1a1a1a; }}
+    main {{ max-width: 560px; margin: 48px auto; padding: 24px; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; }}
+    h1 {{ font-size: 1.5rem; margin: 0 0 12px; }}
+    .state {{ font-family: ui-monospace, Consolas, monospace; font-size: 0.875rem; padding: 12px; border-radius: 4px; background: #f5f5f5; }}
+    .ok {{ background: #f0fdf4; color: #16a34a; }}
+    .err {{ background: #fef2f2; color: #dc2626; }}
+    .meta {{ margin-top: 16px; font-size: 0.875rem; color: #666; line-height: 1.6; }}
+    .actions {{ margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }}
+    a.btn {{ display: inline-block; padding: 8px 14px; background: #ea580c; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; }}
+    a.btn:hover {{ background: #c2410c; }}
+    a.muted {{ color: #666; }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>BspBuddy · Portal 换票</h1>
+    <p id="state" class="state">正在用 portal_code 换取会话…</p>
+    <div id="meta" class="meta" hidden></div>
+  </main>
+  <script>
+    const code = {repr(safe_code)};
+    const returnUrl = {repr(safe_return)};
+    const tenantId = {repr(safe_tenant)};
+    const state = document.getElementById('state');
+    const meta = document.getElementById('meta');
+
+    function launchDesktop(token) {{
+      const deep = 'bspbuddy://auth/session?token=' + encodeURIComponent(token);
+      // 不改 location（避免离开本页）；用隐藏 <a> 点击唤起协议
+      try {{
+        const a = document.createElement('a');
+        a.href = deep;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }} catch (_) {{}}
+      return deep;
+    }}
+
+    async function run() {{
+      if (!code) {{
+        state.className = 'state err';
+        state.textContent = '缺少 code：请从 Portal 入口进入';
+        return;
+      }}
+      try {{
+        const body = {{ code }};
+        if (tenantId) body.tenant_id = tenantId;
+        const res = await fetch('/api/auth/portal', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify(body),
+        }});
+        const data = await res.json().catch(() => ({{}}));
+        if (!res.ok) {{
+          const detail = data.detail;
+          const msg = typeof detail === 'string' ? detail : (detail ? JSON.stringify(detail) : ('HTTP ' + res.status));
+          throw new Error(msg);
+        }}
+        try {{
+          localStorage.setItem('bspbuddy.portal.token', data.token);
+          localStorage.setItem('bspbuddy.portal.user', JSON.stringify(data.user || {{}}));
+          localStorage.setItem('bspbuddy.portal.tenant_id', data.tenant_id || '');
+        }} catch (_) {{}}
+        const deep = launchDesktop(data.token);
+        state.className = 'state ok';
+        state.textContent = '登录成功 · 正在打开 BspBuddy 桌面端…';
+        meta.hidden = false;
+        const u = data.user || {{}};
+        meta.innerHTML =
+          '<div><strong>' + (u.display_name || u.username || '') + '</strong></div>' +
+          '<div>user_id ' + (u.id || '') + ' · tenant ' + (data.tenant_id || '') + ' · role ' + (u.role || '') + '</div>' +
+          '<div>source ' + (u.source || '') + '</div>' +
+          '<div class="actions">' +
+            '<a class="btn" id="open-app" href="' + deep + '">打开 BspBuddy</a>' +
+            '<a class="muted" href="http://127.0.0.1:3100/">返回 Portal</a>' +
+          '</div>' +
+          '<div style="margin-top:12px;color:#888">若未弹出应用：请先运行 BspBuddy 桌面端（npm run dev），再点上方按钮。</div>';
+      }} catch (e) {{
+        state.className = 'state err';
+        state.textContent = '换票失败：' + (e && e.message ? e.message : e);
+      }}
+    }}
+    run();
+  </script>
+</body>
+</html>
+"""
+    return HTMLResponse(content=html)
 
 
 @router.get("/me", response_model=UserRead)

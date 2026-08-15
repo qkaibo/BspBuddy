@@ -16,7 +16,7 @@ interface PanelChromeProps {
 }
 
 /**
- * Shared panel chrome: title bar + optional tabs + body.
+ * Shared panel chrome: title + tabs on one row, optional toolbar, body.
  * Keeps sidebar panels visually consistent (spacing, type, hairline borders).
  */
 export function PanelChrome({
@@ -30,6 +30,8 @@ export function PanelChrome({
   children,
   bodyStyle,
 }: PanelChromeProps) {
+  const hasTabs = Boolean(tabs && tabs.length > 0)
+
   return (
     <div style={panelRootStyle()} className="bb-panel">
       <header className="bb-panel-header">
@@ -37,31 +39,34 @@ export function PanelChrome({
           {icon ? <span className="bb-panel-icon" aria-hidden="true">{icon}</span> : null}
           <h1 className="bb-panel-title">{title}</h1>
         </div>
+
+        {hasTabs ? (
+          <nav className="bb-tabs bb-tabs--inline" aria-label={`${title}分区`}>
+            {tabs!.map((tab) => {
+              const active = tab.id === activeTab
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`bb-tab${active ? ' bb-tab--active' : ''}`}
+                  onClick={() => onTabChange?.(tab.id)}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </nav>
+        ) : (
+          <div className="bb-panel-header-spacer" />
+        )}
+
         {onClose ? (
           <button type="button" className="bb-icon-btn" onClick={onClose} aria-label={`关闭${title}`}>
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
         ) : null}
       </header>
-
-      {tabs && tabs.length > 0 ? (
-        <nav className="bb-tabs" aria-label={`${title}分区`}>
-          {tabs.map((tab) => {
-            const active = tab.id === activeTab
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={`bb-tab${active ? ' bb-tab--active' : ''}`}
-                onClick={() => onTabChange?.(tab.id)}
-                aria-current={active ? 'page' : undefined}
-              >
-                {tab.label}
-              </button>
-            )
-          })}
-        </nav>
-      ) : null}
 
       {toolbar ? <div className="bb-panel-toolbar">{toolbar}</div> : null}
 

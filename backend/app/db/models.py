@@ -34,8 +34,12 @@ class User(SQLModel, table=True):
     username: str = Field(index=True)
     display_name: Optional[str] = None
     role: str = Field(default="member", index=True)
-    # 账号来源:web=网页端创建;wechat 等=渠道懒建(用户管理列表默认隐藏)
+    # 账号来源:web=网页端创建;wechat 等=渠道懒建;portal=Portal 飞书 SSO
     source: str = Field(default="web", index=True)
+    # Portal / 飞书登录 SSO（与渠道 Bot 身份分家）；union_id 全局唯一映射
+    feishu_union_id: Optional[str] = Field(default=None, index=True)
+    feishu_open_id: Optional[str] = None
+    email: Optional[str] = None
     password_hash: str
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

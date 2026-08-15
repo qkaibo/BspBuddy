@@ -883,6 +883,7 @@ def seed_demo_data(session: Session) -> None:
         session.add(admin_user)
 
     _ensure_seed_agents(session)
+    _ensure_domain_experts(session)
 
     for raw_content in (
         REFUND_SKILL,
@@ -1073,6 +1074,109 @@ def _ensure_seed_agents(session: Session) -> None:
                 status="active",
             )
         )
+
+
+def _ensure_domain_experts(session: Session) -> None:
+    """Seed summonable hardware/domain experts (agents-001). Upsert by stable id."""
+    tenant_id = "tenant_demo"
+    experts = (
+        {
+            "id": "agent_bes_audio_expert",
+            "name": "BES音频专家",
+            "description": (
+                "精通恒玄 BES 系列音频 SoC（如 BES2300 / BES2600 / BES2700）的蓝牙音频、"
+                "ANC、DSP、固件调试与指标调优；可协助排查啸叫、通话降噪、连接与功耗问题。"
+            ),
+            "persona_prompt": (
+                "你是 BES（恒玄 Bestechnic）音频方案专家，熟悉 BES2300 / BES2600 / BES2700 等芯片的"
+                "蓝牙协议栈、TWS、ANC、EQ/动态范围、通话降噪、DSP 算法与固件烧录调试流程。"
+                "回答时优先给出可验证的排查步骤：现象 → 可能模块 → 日志/抓包/指标 → 配置或固件改动建议。"
+                "不确定时明确说明假设，避免编造寄存器地址或未公开的私有参数。"
+            ),
+            "metadata": {
+                "title": "BES音频专家",
+                "methodology": "芯片手册 + 日志/抓包分析 + 音频指标验证 + 固件迭代",
+                "toolChain": [
+                    "BES 开发套件",
+                    "蓝牙抓包",
+                    "ANC/通话指标台架",
+                    "固件烧录工具",
+                    "音频分析仪",
+                ],
+                "skills": [
+                    "蓝牙音频",
+                    "ANC",
+                    "DSP",
+                    "TWS",
+                    "固件调试",
+                    "通话降噪",
+                ],
+                "categories": ["engineering", "hardware", "audio"],
+                "examples": [
+                    {
+                        "title": "ANC 啸叫排查",
+                        "description": "入耳后啸叫或增益过大",
+                        "prompt": "BES2600 ANC 入耳后啸叫，帮我按模块排查",
+                        "expectedOutput": "分步排查清单：麦克风通路、反馈/前馈参数、泄漏与贴合、日志关注点",
+                    },
+                    {
+                        "title": "通话降噪调优",
+                        "description": "户外通话底噪或断续",
+                        "prompt": "户外场景通话对方听不清，怀疑降噪过猛，怎么调",
+                        "expectedOutput": "场景分类、可调参数方向、对比试验与回退建议",
+                    },
+                ],
+                "isCustom": False,
+                "bspbuddy_status": "online",
+                "bindings": {
+                    "sopSkills": [],
+                    "skills": [],
+                    "mcpServers": [],
+                    "knowledgeBases": [],
+                    "connectors": [],
+                },
+                "published_to_gallery": True,
+                "gallery_published_by": "admin",
+                "seed_source": "bspbuddy_domain_expert_seed",
+                "managed_by_seed": True,
+            },
+        },
+    )
+
+    for spec in experts:
+        agent_id = spec["id"]
+        metadata = _system_seed_metadata(spec["metadata"])
+        existing = session.get(AgentProfile, agent_id)
+        if not existing:
+            by_name = session.exec(
+                select(AgentProfile).where(
+                    AgentProfile.tenant_id == tenant_id,
+                    AgentProfile.name == spec["name"],
+                )
+            ).first()
+            existing = by_name
+        if existing:
+            existing.name = spec["name"]
+            existing.description = spec["description"]
+            existing.persona_prompt = spec["persona_prompt"]
+            existing.is_overall = False
+            existing.status = "active"
+            existing.metadata_json = metadata
+            existing.updated_at = utc_now()
+            session.add(existing)
+        else:
+            session.add(
+                AgentProfile(
+                    id=agent_id,
+                    tenant_id=tenant_id,
+                    name=spec["name"],
+                    description=spec["description"],
+                    persona_prompt=spec["persona_prompt"],
+                    is_overall=False,
+                    status="active",
+                    metadata_json=metadata,
+                )
+            )
 
 
 def _archive_seed_default_agent(session: Session, tenant_id: str) -> None:

@@ -254,6 +254,30 @@ token/session
 4. 调用 `domainService.method(actor, …)`  
 5. 领域内再做资源 ACL；返回 403/404 按领域约定
 
+### 本地后端连接状态（桌面）
+
+`expert:fastapi-status` → 主进程对 `GET /api/health` 做实时探测，返回：
+
+| 字段 | 说明 |
+|------|------|
+| `ready` / `online` | 健康检查是否通过 |
+| `baseUrl` | 如 `http://127.0.0.1:52020` |
+| `latencyMs` | 可选 |
+| `error` | 失败原因 |
+| `checkedAt` | 探测时间戳 |
+
+**定时检测（主进程，非 renderer `setInterval`）：**
+
+1. `startFastApiHealthMonitor()` 在应用就绪后启动，默认每 **15s** 调用一次 `probeFastApiStatus()`  
+2. 探测完成后通过 `expert:fastapi-status-changed` 推送到所有窗口（`webContents.send`）  
+3. 侧栏订阅该事件更新状态；**后台轮询与手动刷新均不改主文案**，仅状态点闪烁  
+4. 用户点击侧栏状态 → `invoke(expert:fastapi-status)` 立即探测  
+5. 应用退出时 `stopFastApiHealthMonitor()` 清理定时器  
+
+禁止仅依赖 renderer 定时器做健康检测（窗口后台会被 Chromium 节流，导致「不能定时检查」）。禁止在侧栏用第二行展示「刚刚检测 / N 秒前」等时间文案。
+
+侧栏页脚单行展示「本地服务已连接 / 未连接」。此状态是 **FastAPI 桥接可用性**，与桌面 Phase1 本地登录会话不是同一概念。
+
 ### 角色变更
 
 1. Admin 更新 roles → 校验「不能移除最后一个 admin」  

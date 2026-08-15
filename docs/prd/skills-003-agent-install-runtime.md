@@ -14,6 +14,7 @@ related: [skills-001, skills-002, agents-002, agents-004, skills-hub-capability-
 | 做 | 不做（首期） |
 |----|--------------|
 | BspBuddy 桌面 + Cursor 平台路径 | 全量 Hermes/Codex/Copilot 多端（预留 enum） |
+| **TsBuddy IDE / Qoder**（platform=`tsbuddy`）：扩展直连 runtime+files 写 `.kilo/skills`（引擎发现路径；见下「消费端」） | 强制依赖 install-prompt 才能装盘 |
 | 安装指令面板 + 复制 | 飞书登录卡片发卡 |
 | `.bspbuddy_skill_token`（或复用会话 token） | 照搬 `.skillhub_token` 品牌与 CLI 文件名 |
 | runtime + 本地壳 | 强制用户安装外部 Python CLI（可选后置） |
@@ -33,13 +34,14 @@ related: [skills-001, skills-002, agents-002, agents-004, skills-hub-capability-
 | # | 功能 | 说明 |
 |---|------|------|
 | 1 | 安装指令面板 | 生成可复制自然语言指令（含平台、slug、API base、规则入口） |
-| 2 | 平台选择 | MVP：`bspbuddy` / `cursor`；其它值预留 |
+| 2 | 平台选择 | MVP：`bspbuddy` / `cursor` / **`tsbuddy`**（目标路径 `.kilo/skills`，引擎发现约定）；其它值回落 cursor |
 | 3 | 规则文件 | 提供 BspBuddy Skills 引导规则（mdc / 等价），含鉴权与红线 |
 | 4 | 本地壳安装 | 写入平台 skills 目录 `{slug}/SKILL.md`（壳，非全文也可） |
 | 5 | Runtime | `GET .../runtime` 返回最新主指令、manifest、权限提示 |
 | 6 | Token 约定 | 本地文件或安全存储；**禁止**在对话中回显 |
 | 7 | 与 L1–L3 联动 | 调用前检查 skills-002；403 展示申请动作 |
 | 8 | 安装完成判定 | 壳文件存在 +（可选）自检通过才可对用户说「已安装」 |
+| 9 | TsBuddy 扩展消费 | TsBuddy IDE（基于 Kilo 引擎的 VS Code/Qoder 扩展）可不经 install-prompt，直接 runtime+files 落盘（权威：kilocode `docs/prd/skillhub-002-local-install.md`） |
 
 ## 数据模型
 
@@ -56,6 +58,18 @@ related: [skills-001, skills-002, agents-002, agents-004, skills-hub-capability-
 |--------------|------------|-------------|
 | `cursor` | `.cursor/rules/bspbuddy-skills.mdc` | `.cursor/skills/{slug}/SKILL.md` |
 | `bspbuddy` | 产品内规则通道 / 后端绑定 | 用户技能库 + 专家 binding（agents-002） |
+| `tsbuddy` | `.kilo/rules/bspbuddy/`（策略另见 policy） | `.kilo/skills/{slug}/`（完整包；`.kilo` 为引擎发现路径，非平台品牌名） |
+
+### 消费端：TsBuddy IDE / Qoder
+
+| 项 | 说明 |
+|---|---|
+| 产品 | TsBuddy（基于 Kilo 引擎的 VS Code/Qoder 扩展） |
+| 平台 ID | `tsbuddy`（**勿**用 `kilo` 作为我方平台枚举） |
+| 安装主路径 | `GET runtime?intent=install` + `GET files/{path}` → 工作区 `.kilo/skills/{slug}/` |
+| install-prompt | **可选**；扩展自行写盘，不阻塞。后端已接受 `platform=tsbuddy`，文案指向 `.kilo/skills` |
+| 发现刷新 | 装后由扩展调用引擎 `POST /instance/reload` |
+| 文档 | kilocode 仓库：`docs/prd/skillhub-002-local-install.md`、`docs/tech-spec/skillhub-002-package-install.md` |
 
 ### 本地壳语义
 

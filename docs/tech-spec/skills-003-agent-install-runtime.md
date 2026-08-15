@@ -107,9 +107,17 @@ Response: `{ "token": "…", "expires_at": "…" }`（明文仅此一次）
 
 ### 3.5 安装指令（前端生成，可后端辅助）
 
-`GET /api/enterprise/general-skills/{slug}/install-prompt?platform=cursor|bspbuddy`
+`GET /api/enterprise/general-skills/{slug}/install-prompt?platform=cursor|bspbuddy|tsbuddy`
 
 返回 `{ "platform", "prompt_text", "runtime_url", "rules_url" }`，便于 UI 与后端文案一致。
+
+| platform | 现状 | skills 文案目标 |
+|---|---|---|
+| `cursor` | ✅ | `.cursor/skills/{slug}/` |
+| `bspbuddy` | ✅ | 产品内绑定 |
+| `tsbuddy` | ✅ | `.kilo/skills/{slug}/`（引擎发现路径；平台品牌为 TsBuddy） |
+
+**说明：** TsBuddy 扩展安装**不依赖**本接口（见 §5.3）；本参数仅为「复制给 Agent」文案与 Cursor 路径区分。
 
 ## 4. 数据模型
 
@@ -189,7 +197,22 @@ Unique `(tenant_id, skill_id, version)`。
   → 不在此路径强制 +invoke_count（安装 ≠ 调用；调用见 runtime invoke / run）
 ```
 
-### 5.3 执行时（与 agents-004 衔接）
+### 5.3 TsBuddy IDE / Qoder 扩展安装（消费端，已落地于 kilocode）
+
+```
+SkillHub UI「安装」
+  → GET runtime?intent=install&tenant_id=
+  → 写 .kilo/skills/{slug}/SKILL.md（优先 skill_markdown，否则 shortcut）
+  → for manifest: GET files/{path} → 同目录相对路径
+  → POST /instance/reload（会话 busy → 409，不标安装成功）
+  → 会话「启用」→ 短 preference；Agent 用 skill 工具加载本地包（含 scripts/）
+```
+
+权威实现与验收：kilocode `docs/tech-spec/skillhub-002-package-install.md`、`docs/plans/skillhub-02-local-install.md`。
+
+本仓库 API **无需为 TsBuddy 新增端点**；`install-prompt` 已接受 `platform=tsbuddy`（落盘文案指向 `.kilo/skills`）。
+
+### 5.4 执行时（与 agents-004 衔接）
 
 ```
 Harness 调用 general_skill.{slug}
@@ -207,7 +230,7 @@ GET .../runtime?intent=install → 不计调用（仅装壳）
 
 首期：**执行仍走库内快照**；runtime 主服务外部 Agent 与壳同步。桌面执行热更新可作为 Phase C。
 
-### 5.4 shortcut_skill_md 生成规则
+### 5.5 shortcut_skill_md 生成规则
 
 服务端模板生成，至少包含：
 

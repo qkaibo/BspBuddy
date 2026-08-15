@@ -69,6 +69,22 @@ export function ExpertCenter({ onClose, onSummonExpert, onTeamExecute, onManageS
     initAuth()
     loadData()
 
+    // Portal SSO / 深链换票后主进程会推送新 token
+    const onAuthChanged = () => {
+      void (async () => {
+        try {
+          const token = await ipc.invoke(IPC_CHANNELS.EXPERT_AUTH_TOKEN) as string | null
+          if (token) {
+            setApiToken(token)
+            loadData()
+          }
+        } catch { /* ignore */ }
+      })()
+    }
+    try {
+      ipc.on(IPC_CHANNELS.EXPERT_AUTH_CHANGED, onAuthChanged)
+    } catch { /* ignore */ }
+
     // Poll for FastAPI readiness — when backend becomes available, reload from API
     let didReload = false
     const poll = setInterval(async () => {
@@ -89,7 +105,12 @@ export function ExpertCenter({ onClose, onSummonExpert, onTeamExecute, onManageS
         }
       } catch { /* ignore */ }
     }, 2000)
-    return () => clearInterval(poll)
+    return () => {
+      clearInterval(poll)
+      try {
+        ipc.off(IPC_CHANNELS.EXPERT_AUTH_CHANGED, onAuthChanged)
+      } catch { /* ignore */ }
+    }
   }, [])
 
   async function initAuth() {

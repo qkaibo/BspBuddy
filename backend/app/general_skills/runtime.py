@@ -122,7 +122,7 @@ def build_install_prompt_payload(
 ) -> dict[str, Any]:
     base = api_base.rstrip("/")
     normalized = platform.strip().lower() or "cursor"
-    if normalized not in {"cursor", "bspbuddy"}:
+    if normalized not in {"cursor", "bspbuddy", "tsbuddy"}:
         normalized = "cursor"
     runtime_url = f"{base}/api/enterprise/general-skills/{skill.slug}/runtime"
     rules_url = f"{base}/api/enterprise/agent-rules/bspbuddy-skills.mdc"

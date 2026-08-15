@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # 钉钉 emotion 接口的表情常量与所需权限尚未真机验证，验证通过前默认关闭：
     # 否则常量失效或权限未开时，每条入站消息都会留下一条失败的 reaction 投递。
     channel_dingtalk_reaction_enabled: bool = False
+    # Portal 统一入口 SSO（portal-001）：验 code 的 introspect 地址与默认租户
+    portal_introspect_url: str = "http://127.0.0.1:3100/api/portal/codes/introspect"
+    portal_default_tenant_id: str = "tenant_demo"
+    portal_default_role: str = "member"
+    portal_allow_create_user: bool = True
 
     model_config = SettingsConfigDict(
         env_file=_os.environ.get("ULTRARAG_DOTENV", ".env"),

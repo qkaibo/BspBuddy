@@ -54,6 +54,7 @@ auth（身份 + 角色/RBAC）
 | 7 | 会话注入下游 | （无独立页） | 所有 IPC/API 携带 actor；资源域消费身份 |
 | 8 | 与资源 ACL 衔接 | SOP 创作台等 | list/edit 按 actor + 领域 ACL；admin 可有租户级覆盖策略 |
 | 9 | 与 Agent 沙箱分栏说明 | 任务 Composer 权限下拉 | UI/文案不把「默认权限」写成「管理员权限」 |
+| 10 | 本地后端连接状态 | 侧栏页脚（全局可见） | 主进程定时探测 FastAPI `/api/health`（默认 15s）并推送到 UI；已连接 / 未连接；点击可立即刷新；探测中仅状态点闪烁（单行、不展示「刚刚检测」类文案）；与「桌面本地会话」文案区分 |
 
 ---
 
@@ -287,6 +288,7 @@ auth.actor (tenantId, userId, roles)
 | `POST /api/auth/users` · `auth:users:create` | 新建成员 | admin |
 | `PUT /api/auth/users/{id}` · `auth:users:update` | 编辑成员 | admin |
 | `DELETE /api/auth/users/{id}` · `auth:users:delete` | 删除成员 | admin |
+| `GET /api/health` · `expert:fastapi-status` | 侧栏状态 / 各面板重试 | 无（健康检查）；返回 `ready`/`online`/`baseUrl`/`latencyMs`/`error` |
 | （下游）各资源 `*:list/update` | 创作台等 | 已认证 + **资源 ACL**；actor 由会话注入 |
 
 契约细节见 [auth-001-api](../tech-spec/auth-001-session-and-rbac.md)。
@@ -323,5 +325,6 @@ auth.actor (tenantId, userId, roles)
 - [ ] 与 agents-003 正交：有专家 bindings ≠ 自动 SOP 库 edit；身份字段来自 auth
 - [ ] Phase 1 桌面单用户模拟有明确标注；不得声称多用户 RBAC 已完成
 - [ ] 产品文案为 BspBuddy，无 WorkBuddy 品牌
+- [x] 侧栏页脚展示本地后端连接状态（已连接 / 未连接）；主进程定时探测（默认 15s）+ 点击立即刷新；断线时策略等面板有明确指引
 - [ ] L2/L3 验收按项目验收标准；成员管理 UI 须 L3 走通主路径后方可标完成
 )

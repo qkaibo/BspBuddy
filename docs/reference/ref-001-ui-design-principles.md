@@ -13,6 +13,8 @@ related: []
 
 **视觉系统**以仓库根目录 [`DESIGN.md`](../../DESIGN.md) 为准（令牌、`.bb-*` craft 原语、`PanelChrome`、侧栏密度、悬浮 Composer）。新增页面必须复用该系统，禁止另起色板或顶栏样式。
 
+**Windows 窗口铬：** 应用名（BspBuddy）与 File / Edit / View 等菜单须在**同一行**（自定义 titlebar + `titleBarOverlay`）。禁止「系统标题栏一行 + 原生菜单栏一行」的双行铬。macOS 继续用系统菜单栏。
+
 产品名统一 **BspBuddy**；参考实现 / 截图可注明来源，勿把品牌写成参考实现名。
 
 ---
@@ -54,7 +56,7 @@ related: []
 ## 验收清单
 
 - [ ] 布局/欢迎态对照权威布局文档（docs reference 或过渡期截图 SPEC），无以旧 ASCII 为准的偏差借口
-- [ ] 视觉对照 `DESIGN.md`：二级面板用 `PanelChrome` / `.bb-*`，主内容偏白，少硬分割线，无另起主色
+- [ ] 视觉对照 `DESIGN.md`：二级面板用 `PanelChrome` / `.bb-*`，**标题与 Tab 同一行**，主内容偏白，少硬分割线，无另起主色
 - [ ] 主路径可演示：进入 → 完成核心操作 → 回到对话或看到结果
 - [ ] 界面含空状态指引、主 CTA、示例/默认值（非纯空白输入框）
 - [ ] 欢迎态可直接发送，Composer 一体（悬浮 dock，非贴底整条）

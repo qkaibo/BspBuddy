@@ -26,7 +26,7 @@ import type {
   AuthUserUpdateParams,
   AuthUsersListParams,
 } from '../../lib/auth-types'
-import { startFastApi, stopFastApi, fastApiFetch, isFastApiReady, getFastApiBaseUrl, getToken } from './fastapi-bridge'
+import { startFastApi, stopFastApi, fastApiFetch, isFastApiReady, getFastApiBaseUrl, getToken, probeAndBroadcastFastApiStatus } from './fastapi-bridge'
 import { mcpService } from './mcp-service'
 import { imBridge } from './im-bridge'
 import { assistantExecutor } from './assistant-executor'
@@ -992,6 +992,14 @@ ${toolsJson}
   })
 
   ipcMain.handle(IPC_CHANNELS.AUTH_ME, async () => {
+    // Portal / FastAPI 会话优先（飞书 SSO）；否则回落本地 Phase-1 auth-service
+    try {
+      const { resolveFastApiAuthMe } = await import('./fastapi-bridge')
+      const remote = await resolveFastApiAuthMe()
+      if (remote) return remote
+    } catch {
+      /* fall through */
+    }
     return authService.me()
   })
 
@@ -1411,6 +1419,38 @@ ${toolsJson}
     } catch (err) {
       return { ok: false, baseUrl, error: err instanceof Error ? err.message : '探测失败' }
     }
+  })
+
+  // ---- Policy (policy-001) ----
+  ipcMain.handle(IPC_CHANNELS.POLICY_RULES_LIST, async () => {
+    return fastApiFetch('GET', '/api/enterprise/policy/rules')
+  })
+  ipcMain.handle(IPC_CHANNELS.POLICY_RULES_CREATE, async (_e, body: Record<string, unknown>) => {
+    return fastApiFetch('POST', '/api/enterprise/policy/rules', body)
+  })
+  ipcMain.handle(IPC_CHANNELS.POLICY_PACKS_LIST, async () => {
+    return fastApiFetch('GET', '/api/enterprise/policy/packs')
+  })
+  ipcMain.handle(IPC_CHANNELS.POLICY_PACKS_CREATE, async (_e, body: Record<string, unknown>) => {
+    return fastApiFetch('POST', '/api/enterprise/policy/packs', body)
+  })
+  ipcMain.handle(IPC_CHANNELS.POLICY_BINDINGS_LIST, async () => {
+    return fastApiFetch('GET', '/api/enterprise/policy/bindings')
+  })
+  ipcMain.handle(IPC_CHANNELS.POLICY_BINDINGS_CREATE, async (_e, body: Record<string, unknown>) => {
+    return fastApiFetch('POST', '/api/enterprise/policy/bindings', body)
+  })
+  ipcMain.handle(IPC_CHANNELS.POLICY_RESOLVED, async (_e, params?: {
+    project_key?: string
+    mode?: string
+    expert_id?: string
+  }) => {
+    const qs = new URLSearchParams()
+    if (params?.project_key) qs.set('project_key', params.project_key)
+    if (params?.mode) qs.set('mode', params.mode)
+    if (params?.expert_id) qs.set('expert_id', params.expert_id)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return fastApiFetch('GET', `/api/enterprise/policy/resolved${suffix}`)
   })
 
   // ---- Resource Sync Helper ----
@@ -1841,7 +1881,7 @@ ${toolsJson}
   })
 
   ipcMain.handle(IPC_CHANNELS.EXPERT_FASTAPI_STATUS, async () => {
-    return { ready: isFastApiReady(), baseUrl: getFastApiBaseUrl() }
+    return probeAndBroadcastFastApiStatus()
   })
 
   // ---- Plugin ----

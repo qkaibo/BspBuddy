@@ -54,5 +54,6 @@ curl -sS -H "Authorization: Bearer $TOKEN" \
 |------|-------------|
 | cursor | `.cursor/skills/{slug}/SKILL.md` |
 | bspbuddy | 通过产品「我的技能 / 安装到专家」完成，不只写磁盘 |
+| tsbuddy | `.kilo/skills/{slug}/`（TsBuddy IDE/Qoder；扩展可直连 runtime+files；`.kilo` 为引擎发现路径） |
 
 规则文件目标（Cursor）：`.cursor/rules/bspbuddy-skills.mdc`

@@ -22,9 +22,11 @@ import { AssistantPanel } from '../components/AssistantPanel'
 import { AssistantSettings } from '../components/AssistantSettings'
 import { FeedbackPanel } from '../components/FeedbackPanel'
 import { AutomationPanel } from '../components/AutomationPanel'
+import { PolicyPanel } from '../components/PolicyPanel'
 import { ModelConfigSettings } from '../components/ModelConfigSettings'
 import { ExpertModelCatalogPanel } from '../components/ExpertModelCatalogPanel'
 import { ContentShell } from '../components/ContentShell'
+import { AppTitleBar } from '../components/AppTitleBar'
 import type { AgentMailbox } from '../lib/mailbox-types'
 import { useAgent } from '../hooks/useAgent'
 import { useSession } from '../hooks/useSession'
@@ -35,7 +37,7 @@ import type { Expert, ExpertTeam } from '../lib/expert-types'
 
 const ipc = createIpcClient()
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'expert-model-catalog' | 'feedback' | 'automation'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'model-config' | 'expert-model-catalog' | 'feedback' | 'automation' | 'policy'
 
 export default function App() {
   const { messages, activePlan, isProcessing, mode, setMode, modelId, setModelId, sendMessage, stopAgent, setMessages } = useAgent()
@@ -68,6 +70,26 @@ export default function App() {
       }
     } catch { /* session may not be ready */ }
   }, [])
+
+  // Portal SSO / FastAPI token 变更后刷新侧栏账号
+  useEffect(() => {
+    const onAuthChanged = (payload?: { user?: { id?: string; display_name?: string; username?: string; role?: string } | null }) => {
+      const u = payload?.user
+      if (u && (u.display_name || u.username || u.id)) {
+        setCurrentUser({
+          id: String(u.id || 'portal-user'),
+          name: String(u.display_name || u.username || 'User'),
+          role: String(u.role || '').toLowerCase() === 'admin' ? 'admin' : 'member',
+        })
+        return
+      }
+      void syncAuthUser()
+    }
+    ipc.on(IPC_CHANNELS.EXPERT_AUTH_CHANGED, onAuthChanged)
+    return () => {
+      ipc.off(IPC_CHANNELS.EXPERT_AUTH_CHANGED, onAuthChanged)
+    }
+  }, [syncAuthUser])
 
   // Load sessions on startup
   useEffect(() => {
@@ -258,6 +280,8 @@ export default function App() {
 
   return (
     <div className="bb-app-shell">
+      <AppTitleBar />
+      <div className="bb-app-body">
       <Sidebar
         sessions={sessions}
         onNewSession={handleNewSession}
@@ -265,6 +289,7 @@ export default function App() {
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
         activeView={activeView}
+        currentUser={currentUser}
         onNavigate={(view) => {
           if (view === 'plugins') setPluginsInitialTab('installed')
           setActiveView(view)
@@ -365,6 +390,8 @@ export default function App() {
             <FeedbackPanel onClose={handleNavigateToChat} />
           ) : activeView === 'automation' ? (
             <AutomationPanel onClose={handleNavigateToChat} />
+          ) : activeView === 'policy' ? (
+            <PolicyPanel onClose={handleNavigateToChat} />
           ) : hasMsg ? (
             <ChatPanel
               messages={messages}
@@ -403,6 +430,7 @@ export default function App() {
             />
           )}
         </div>
+      </div>
       </div>
     </div>
   )

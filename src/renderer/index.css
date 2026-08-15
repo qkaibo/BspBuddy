@@ -95,7 +95,115 @@ body {
 .bb-app-shell {
   height: 100vh;
   display: flex;
+  flex-direction: column;
   background: transparent;
+  overflow: hidden;
+}
+.bb-app-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.bb-titlebar {
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: #f0f0f2;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  -webkit-app-region: drag;
+  user-select: none;
+  z-index: 50;
+}
+.bb-titlebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  padding: 0 8px 0 4px;
+  -webkit-app-region: no-drag;
+  white-space: nowrap;
+}
+.bb-titlebar-brand svg {
+  flex-shrink: 0;
+  display: block;
+  border-radius: 4px;
+}
+.bb-titlebar-menus {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  -webkit-app-region: no-drag;
+}
+.bb-titlebar-menu {
+  position: relative;
+}
+.bb-titlebar-menu-btn {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: default;
+}
+.bb-titlebar-menu-btn:hover,
+.bb-titlebar-menu-btn--open {
+  background: rgba(15, 23, 42, 0.06);
+}
+.bb-titlebar-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  margin-top: 2px;
+  padding: 4px 0;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg, 0 12px 32px rgba(15, 23, 42, 0.14));
+  z-index: 1000;
+}
+.bb-titlebar-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  padding: 6px 14px;
+  cursor: default;
+  text-align: left;
+}
+.bb-titlebar-item:hover {
+  background: var(--bg-hover, rgba(15, 23, 42, 0.06));
+}
+.bb-titlebar-shortcut {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.bb-titlebar-sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
+.bb-titlebar-drag {
+  flex: 1;
+  min-width: 24px;
+  height: 100%;
+  -webkit-app-region: drag;
 }
 .bb-main-stage {
   flex: 1;
@@ -139,10 +247,10 @@ body {
 .bb-panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
-  padding: 14px 20px;
-  min-height: 52px;
+  padding: 8px 16px 8px 20px;
+  min-height: 48px;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px) saturate(1.08);
   -webkit-backdrop-filter: blur(12px) saturate(1.08);
@@ -154,6 +262,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.bb-panel-header-spacer {
+  flex: 1;
   min-width: 0;
 }
 .bb-panel-icon {
@@ -180,6 +293,29 @@ body {
   -webkit-backdrop-filter: blur(10px);
   border-bottom: none;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  flex-shrink: 0;
+}
+/* Title-row inline tabs (preferred): sit beside panel title, no second chrome row */
+.bb-tabs--inline {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  margin: 0 4px;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.bb-tabs--inline .bb-tab {
+  padding: 6px 10px;
+  border-bottom-width: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.bb-panel-header > .bb-icon-btn {
+  margin-left: auto;
   flex-shrink: 0;
 }
 .bb-tab {
@@ -622,6 +758,15 @@ select:focus-visible,
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+@keyframes bb-status-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.bb-status-dot-pulse {
+  animation: bb-status-dot-pulse 0.7s ease-in-out infinite;
+}
 .animate-fade-in { animation: fadeIn .15s ease-out; }
 .animate-slide-up { animation: slideUp .25s ease-out; }
 

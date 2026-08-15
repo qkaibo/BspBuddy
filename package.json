@@ -6,8 +6,9 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "dev:web": "cd apps/web && npx vite",
+    "dev:renderer": "electron-vite dev --rendererOnly",
     "build": "electron-vite build",
+    "build:embed": "electron-vite build",
     "build:web": "cd apps/web && npx vite build",
     "build:mobile": "cd apps/mobile && npx vite build",
     "preview": "electron-vite preview",
@@ -18,8 +19,8 @@
     "website:docker:run": "docker run --rm -p 8080:80 bspbuddy-website:latest"
   },
   "build": {
-    "appId": "com.workbuddy.app",
-    "productName": "WorkBuddy",
+    "appId": "com.bspbuddy.app",
+    "productName": "BspBuddy",
     "directories": {
       "output": "release"
     },
@@ -28,7 +29,7 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "WorkBuddy-${version}-${arch}.${ext}",
+      "artifactName": "BspBuddy-${version}-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "minimumSystemVersion": "12.0"
     },
@@ -36,7 +37,7 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "WorkBuddy-${version}-setup.${ext}",
+      "artifactName": "BspBuddy-${version}-setup.${ext}",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
@@ -47,14 +48,14 @@
       "license": "LICENSE.txt"
     },
     "protocols": {
-      "name": "WorkBuddy",
+      "name": "BspBuddy",
       "schemes": [
-        "workbuddy"
+        "bspbuddy"
       ]
     },
     "publish": {
       "provider": "generic",
-      "url": "https://updates.workbuddy.com"
+      "url": "https://updates.bspbuddy.local"
     }
   },
   "dependencies": {

@@ -163,6 +163,11 @@ export interface LLMConfig {
 
 // ---------- IPC channels ----------
 export const IPC_CHANNELS = {
+  APP_GET_PLATFORM: 'app:get-platform',
+  APP_QUIT: 'app:quit',
+  WINDOW_RELOAD: 'window:reload',
+  WINDOW_TOGGLE_DEVTOOLS: 'window:toggle-devtools',
+  WINDOW_TOGGLE_FULLSCREEN: 'window:toggle-fullscreen',
   EXECUTE_TASK: 'agent:execute-task',
   TASK_PROGRESS: 'agent:task-progress',
   A2A_CHAT_STREAM: 'agent:a2a-chat-stream',
@@ -223,7 +228,11 @@ export const IPC_CHANNELS = {
   EXPERT_CLONE: 'expert:clone',
   EXPERT_TEST_RUN: 'expert:test-run',
   EXPERT_AUTH_TOKEN: 'expert:auth-token',
+  /** Push: Portal SSO / deep-link replaced the Buddy JWT */
+  EXPERT_AUTH_CHANGED: 'expert:auth-changed',
   EXPERT_FASTAPI_STATUS: 'expert:fastapi-status',
+  /** Push: main-process periodic /api/health result */
+  EXPERT_FASTAPI_STATUS_CHANGED: 'expert:fastapi-status-changed',
   PLUGIN_INSTALL: 'plugin:install',
   PLUGIN_UNINSTALL: 'plugin:uninstall',
   PLUGIN_LIST: 'plugin:list',
@@ -405,6 +414,14 @@ export const IPC_CHANNELS = {
   A2A_ACCESS_BACKEND_ME: 'a2a-access:backend-me',
   /** agents-005: GET /a2a/agents with optional Bearer (plaintext or session) */
   A2A_ACCESS_PROBE: 'a2a-access:probe',
+  /** policy-001: Rule / Pack / Binding management */
+  POLICY_RULES_LIST: 'policy:rules-list',
+  POLICY_RULES_CREATE: 'policy:rules-create',
+  POLICY_PACKS_LIST: 'policy:packs-list',
+  POLICY_PACKS_CREATE: 'policy:packs-create',
+  POLICY_BINDINGS_LIST: 'policy:bindings-list',
+  POLICY_BINDINGS_CREATE: 'policy:bindings-create',
+  POLICY_RESOLVED: 'policy:resolved',
   RESOURCE_IMPORT: 'resource:import',
   RESOURCE_UNBIND: 'resource:unbind',
   // Feedback

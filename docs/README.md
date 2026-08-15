@@ -111,8 +111,8 @@ related: [agents-001-api]
 | agents-005 | [A2A 接入 Token（IDE / 外部客户端）](prd/agents-005-a2a-access-token.md) | [agents-005-api](tech-spec/agents-005-a2a-access-token.md) | 🟢 可演示（设置页 + bba2a_ + 探测） |
 | skills-001 | [企业技能商店 — 发现、详情与导入发布](prd/skills-001-discovery-and-detail.md) | skills-001-api | 🟢 实现完成（L2 自测过；桌面 L3 待审查） |
 | skills-002 | [技能访问分级与授权（L1/L2/L3）](prd/skills-002-access-levels.md) | skills-002-api | 🟢 门禁 + 申请/审批 UI（L2 过；L3 待审查） |
-| skills-003 | [Agent 一键安装与 Runtime 协议](prd/skills-003-agent-install-runtime.md) | skills-003-runtime | 🟢 runtime/Token（Cursor 写壳 L3 待审查） |
-| policy-001 | [规则策略包绑定与 IDE 自动同步](prd/policy-001-rule-pack-binding.md) | [policy-001-api](tech-spec/policy-001-api.md) | ✅ Phase A API |
+| skills-003 | [Agent 一键安装与 Runtime 协议](prd/skills-003-agent-install-runtime.md) | skills-003-runtime | 🟢 runtime/Token；`platform=tsbuddy` 已对齐 IDE 消费端 |
+| policy-001 | [规则策略包绑定与 IDE 自动同步](prd/policy-001-rule-pack-binding.md) | [policy-001-api](tech-spec/policy-001-api.md) | ✅ Phase A API + Phase B 管理 UI |
 | marketing-001 | [官网落地页](prd/marketing-001-landing.md) | — | 🟡 静态站初版（`website/`） |
 
 ---
@@ -130,8 +130,8 @@ related: [agents-001-api]
 | settings-002 | [专家模型目录](tech-spec/settings-002-expert-model-catalog.md) | settings-002 | ✅ 已完成 |
 | skills-001-api | [企业技能商店](tech-spec/skills-001-discovery-and-detail.md) | skills-001 | 🟢 已实现 |
 | skills-002-api | [技能访问分级与授权](tech-spec/skills-002-access-levels.md) | skills-002 | 🟢 已实现 |
-| skills-003-runtime | [Agent 安装与 Runtime](tech-spec/skills-003-agent-install-runtime.md) | skills-003 | 🟢 已实现（Loop 热更新延期） |
-| policy-001-api | [规则策略包 API](tech-spec/policy-001-api.md) | policy-001 | ✅ Phase A |
+| skills-003-runtime | [Agent 安装与 Runtime](tech-spec/skills-003-agent-install-runtime.md) | skills-003 | 🟢 已实现；§5.3 TsBuddy（`platform=tsbuddy`）落盘 `.kilo/skills` |
+| policy-001-api | [规则策略包 API](tech-spec/policy-001-api.md) | policy-001 | ✅ Phase A + B IPC |
 
 ---
 

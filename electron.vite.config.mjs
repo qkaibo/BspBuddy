@@ -11,6 +11,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'apps/desktop/main/index.ts'),
+          embed: resolve(__dirname, 'apps/desktop/main/embed.ts'),
         },
       },
     },

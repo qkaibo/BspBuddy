@@ -114,6 +114,11 @@ BspBuddy 的现行界面是一套偏 macOS / 系统 UI 气质的浅色桌面工�
 
 密度偏紧凑：正文多在 11–13px，控件圆角柔和但不夸张，阴影极轻，靠边框与色阶分层。图标统一用 Lucide 线型图标。品牌名 **BspBuddy** 出现在欢迎态主标题等关键位置，禁止再写成 WorkBuddy。
 
+### OS 窗口铬
+
+- **Windows / Linux：** 窗口最顶一行同时放置 **品牌标 + BspBuddy** 与 **File / Edit / View / Window / Help**（自定义 `.bb-titlebar` + `titleBarStyle: 'hidden'` + `titleBarOverlay`）。不要拆成「标题栏 + 下方原生菜单栏」两行。
+- **macOS：** 系统菜单栏承载 File 等；窗口内可不重复同一套菜单（可用 `hiddenInset`）。
+
 质性描述依据 `src/renderer/index.css` 与主流面板组件（WelcomeScreen、Sidebar、Expert*、ResourceCard 等）推断；`src/index.css` 的暗色 HSL 变量体系视为遗留/旁路入口，**新 UI 以 renderer 浅色令牌为准**。配色对齐 taste-skill-zh：≤3 色、禁蓝紫渐变与高饱和「糖果」语义色。
 
 **Key Characteristics:**
@@ -184,7 +189,7 @@ BspBuddy 的现行界面是一套偏 macOS / 系统 UI 气质的浅色桌面工�
 - **展开侧栏**：约 `268px`；主导航 + 紧凑任务/空间列表共处一栏（工作台密度，不是松散营销列表）。
 - **主内容**：偏白纸（`#ffffff` / `.bb-main-canvas`）；氛围渐变留给壳层与侧栏。
 - **欢迎态**：内容列约 `max-width: 720px` 居中；技能行用 `.bb-icon-tile`；Composer 用 `.bb-composer-float`。
-- **面板**：优先 `PanelChrome`（`.bb-panel*`）；顶栏/Tab 用轻阴影色阶分区，少用 1px 实线。
+- **面板**：优先 `PanelChrome`（`.bb-panel*`）；**标题与分区 Tab 同一行**（左标题 / 中 Tab / 右关闭），勿再拆成「标题一行 + Tab 一行」；顶栏用轻阴影色阶分区，少用 1px 实线。
 
 节奏刻度：`4 / 8 / 12 / 16 / 24`。主内容区段落/区块可 16–24；侧栏列表行保持紧凑（任务行约 `32px` 量级），避免「加几条任务就撑满屏」。
 
@@ -195,7 +200,7 @@ BspBuddy 的现行界面是一套偏 macOS / 系统 UI 气质的浅色桌面工�
 
 ## Elevation & Depth
 
-以**背景色差 + 轻阴影**分区为主，1px 实线为辅。面板顶栏、Tab、侧栏分段优先 `box-shadow: 0 1px 0 rgba(15,23,42,.04)` 一类弱分隔，少用粗硬 `border`。
+以**背景色差 + 轻阴影**分区为主，1px 实线为辅。面板顶栏（含同行 Tab）、侧栏分段优先 `box-shadow: 0 1px 0 rgba(15,23,42,.04)` 一类弱分隔，少用粗硬 `border`。
 
 ### Shadow Vocabulary
 - **ambient-sm** (`0 1px 3px rgba(0,0,0,.06)`)：轻浮起、小控件。
@@ -272,6 +277,8 @@ BspBuddy 的现行界面是一套偏 macOS / 系统 UI 气质的浅色桌面工�
 - **Do** 主内容偏白纸；分区靠色差/弱阴影；图标放浅色圆角方底。
 - **Do** 欢迎态保留可发送 Composer；二级功能保证进入→选择→回对话。
 - **Do** 品牌文案写 **BspBuddy**；状态与空态用中文可读文案 + 语义色芯片。
+- **Do** 互斥/分级状态必须**一眼可分**：如策略「必须」用警示红、「建议」用信息蓝；已启用/已禁用、在线/离线等同理。禁止多种语义共用同一灰芯片。
+- **Do** 在空态、引导、品牌/欢迎等关键点**适当用插图或图标图**（产品实物、流程示意、轻量插画），帮助扫读与降低文字密度；图要服务任务，不堆装饰。
 
 ### Don't:
 - **Don't** 把 `src/index.css` 暗色 HSL 令牌当作新功能默认主题（除非明确做暗色模式专项）。
@@ -279,4 +286,6 @@ BspBuddy 的现行界面是一套偏 macOS / 系统 UI 气质的浅色桌面工�
 - **Don't** 用大面积渐变、玻璃拟物堆叠或营销 Hero / 积分促销条打断工作台。
 - **Don't** 侧栏任务行做成高大卡片，导致少量条目占满屏。
 - **Don't** 用 raw ID 输入代替资源选择器，或让选择器永久空数据。
+- **Don't** 把「必须 / 建议」「成功 / 失败」等不同语义画成同色灰标，只靠文字区分。
+- **Don't** 为装饰而堆无意义插图、渐变块或 emoji 墙；图出现时应对齐空态指引或品牌识别。
 - **Don't** 在 UI 中写 WorkBuddy / workbuddy。

@@ -27,4 +27,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
   cwd: () => ipcRenderer.invoke('app:cwd'),
+  platform: process.platform,
 })

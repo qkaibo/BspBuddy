@@ -20,8 +20,9 @@ author: BspBuddy
 1. 确认 Python 非必须；可用 curl + 写文件完成 MVP 安装
 2. `GET $BSPBUDDY_API_BASE/api/enterprise/agent-rules/bspbuddy-skills.mdc`（已登录拿完整版）
 3. `GET .../general-skills/{slug}/runtime?intent=install`
-4. 将 `shortcut_skill_md` 写入：
+4. 将 `shortcut_skill_md`（或授权可见的 `skill_markdown`）写入平台 skills 目录：
    - Cursor：`.cursor/skills/{slug}/SKILL.md`
+   - TsBuddy（platform=`tsbuddy`，IDE/Qoder）：`.kilo/skills/{slug}/SKILL.md`（扩展也可自行 runtime+files 落盘，不必经 install-prompt；`.kilo` 为引擎发现路径）
    - 若 `manifest[]` 非空，下载到同目录；若 path 以 `{slug}/` 开头，落盘前剥掉前缀
 5. 自检文件存在后回复「已安装」，不要询问「是否继续最后一步」
 

@@ -4,8 +4,12 @@ import {
   Bell, ChevronDown, ChevronRight, Trash2, Share2,
   Archive, Edit3, Download, Pin,
   PanelLeftClose, SlidersHorizontal, User, Crosshair,
-  Network, Repeat, Grid3x3, Link, Sparkles, Mail, BookOpen,
+  Network, Repeat, Grid3x3, Link, Sparkles, Mail, BookOpen, ScrollText, RefreshCw,
 } from 'lucide-react'
+import { createIpcClient } from '../lib/client'
+import { IPC_CHANNELS } from '../lib/types'
+
+const ipc = createIpcClient()
 
 interface Session {
   id: string
@@ -16,7 +20,7 @@ interface Session {
   status?: 'in_progress' | 'completed' | 'failed' | 'pending' | 'planning' | 'archived'
 }
 
-type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback' | 'automation'
+type ViewType = 'chat' | 'plugins' | 'experts' | 'connectors' | 'projects' | 'mailbox' | 'activate-mailbox' | 'settings' | 'member-roles' | 'pricing' | 'data' | 'memory' | 'cloud-agent' | 'inspiration' | 'assistant' | 'assistant-settings' | 'feedback' | 'automation' | 'policy'
 
 interface Props {
   sessions: Session[]
@@ -26,6 +30,8 @@ interface Props {
   onToggleCollapse: () => void
   activeView?: ViewType
   onNavigate?: (view: ViewType) => void
+  /** Portal / 本地登录后的展示名；缺省仍显示 User */
+  currentUser?: { id: string; name: string; role: string }
 }
 
 const PRIMARY_NAV = [
@@ -51,7 +57,7 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   archived: 'var(--text-tertiary)',
 }
 
-export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, onToggleCollapse, activeView = 'chat', onNavigate }: Props) {
+export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, onToggleCollapse, activeView = 'chat', onNavigate, currentUser }: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [taskSectionCollapsed, setTaskSectionCollapsed] = useState(false)
@@ -61,9 +67,75 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [pluginMenuOpen, setPluginMenuOpen] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+  const [backendMeta, setBackendMeta] = useState<{
+    baseUrl?: string
+    latencyMs?: number
+    error?: string
+  }>({})
+  const [backendProbing, setBackendProbing] = useState(false)
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const closeAvatarMenu = useCallback(() => setAvatarMenuOpen(false), [])
+
+  const applyBackendStatus = useCallback((status: {
+    ready?: boolean
+    online?: boolean
+    baseUrl?: string
+    latencyMs?: number
+    error?: string
+  } | null | undefined) => {
+    const online = Boolean(status?.online ?? status?.ready)
+    setBackendStatus(online ? 'online' : 'offline')
+    setBackendMeta({
+      baseUrl: status?.baseUrl,
+      latencyMs: status?.latencyMs,
+      error: status?.error,
+    })
+    setBackendProbing(false)
+  }, [])
+
+  const probeBackend = useCallback(async () => {
+    setBackendProbing(true)
+    try {
+      const status = await ipc.invoke(IPC_CHANNELS.EXPERT_FASTAPI_STATUS) as {
+        ready?: boolean
+        online?: boolean
+        baseUrl?: string
+        latencyMs?: number
+        error?: string
+      }
+      applyBackendStatus(status)
+    } catch (e) {
+      setBackendStatus('offline')
+      setBackendMeta({
+        error: e instanceof Error ? e.message : '无法探测本地服务',
+      })
+      setBackendProbing(false)
+    }
+  }, [applyBackendStatus])
+
+  // Subscribe to main-process timed health checks (auth-001). Do not use renderer setInterval.
+  useEffect(() => {
+    const onStatus = (...args: unknown[]) => {
+      const payload = args[0] as {
+        probing?: boolean
+        ready?: boolean
+        online?: boolean
+        baseUrl?: string
+        latencyMs?: number
+        error?: string
+      }
+      if (payload?.probing) {
+        setBackendProbing(true)
+        return
+      }
+      applyBackendStatus(payload)
+    }
+    ipc.on(IPC_CHANNELS.EXPERT_FASTAPI_STATUS_CHANGED, onStatus)
+    void probeBackend()
+    return () => ipc.off(IPC_CHANNELS.EXPERT_FASTAPI_STATUS_CHANGED, onStatus)
+  }, [applyBackendStatus, probeBackend])
 
   useEffect(() => {
     const handler = () => {
@@ -136,8 +208,8 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden', minWidth: 0 }}>
             <span style={{
-              fontSize: 'var(--font-title)', fontWeight: 700, letterSpacing: '-0.02em',
-              color: 'var(--text-primary)', whiteSpace: 'nowrap',
+              fontSize: 'var(--font-title)', fontWeight: 600, letterSpacing: '-0.02em',
+              color: 'var(--text-tertiary)', whiteSpace: 'nowrap',
             }}>
               BspBuddy
             </span>
@@ -319,7 +391,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
                 <Grid3x3 size={13} strokeWidth={1.75} />
               </span>
               <span>更多</span>
-              <span style={{ fontSize: 'var(--font-micro)', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>自动化·灵感</span>
+              <span style={{ fontSize: 'var(--font-micro)', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>策略·自动化</span>
             </button>
             {moreMenuOpen && (
               <div
@@ -331,6 +403,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
+                <SubMenuItem icon={ScrollText} label="策略" onClick={() => { onNavigate?.('policy'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={Repeat} label="自动化" onClick={() => { onNavigate?.('automation'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={Sparkles} label="灵感" onClick={() => { onNavigate?.('inspiration'); setMoreMenuOpen(false) }} />
                 <SubMenuItem icon={Mail} label="邮箱" onClick={() => { onNavigate?.('mailbox'); setMoreMenuOpen(false) }} />
@@ -512,6 +585,91 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         </div>
       )}
 
+      {/* Backend connection status */}
+      <div style={{
+        padding: collapsed ? '6px 8px' : '8px 12px 0',
+        flexShrink: 0,
+      }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            void probeBackend()
+          }}
+          title={
+            backendStatus === 'online'
+              ? `本地服务已连接${backendMeta.baseUrl ? `\n${backendMeta.baseUrl}` : ''}${backendMeta.latencyMs != null ? `\n延迟 ${backendMeta.latencyMs}ms` : ''}\n点击刷新`
+              : backendStatus === 'offline'
+                ? `本地服务未连接${backendMeta.error ? `\n${backendMeta.error}` : ''}${backendMeta.baseUrl ? `\n${backendMeta.baseUrl}` : ''}\n点击重试`
+                : '正在连接本地服务…'
+          }
+          aria-label={
+            backendStatus === 'online' ? '本地服务已连接，点击刷新'
+              : backendStatus === 'offline' ? '本地服务未连接，点击重试'
+                : '正在连接本地服务'
+          }
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: 8,
+            padding: collapsed ? 6 : '6px 8px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: backendStatus === 'online'
+              ? 'rgba(22, 163, 74, 0.08)'
+              : backendStatus === 'offline'
+                ? 'rgba(239, 68, 68, 0.08)'
+                : 'var(--bg-hover)',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className={backendProbing || backendStatus === 'checking' ? 'bb-status-dot-pulse' : undefined}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              flexShrink: 0,
+              background:
+                backendStatus === 'online' ? '#16a34a'
+                  : backendStatus === 'offline' ? '#ef4444'
+                    : 'var(--text-tertiary)',
+              boxShadow: backendStatus === 'online' && !backendProbing
+                ? '0 0 0 3px rgba(22,163,74,0.15)'
+                : undefined,
+            }}
+          />
+          {!collapsed && (
+            <>
+              <span style={{
+                flex: 1,
+                textAlign: 'left',
+                fontSize: 11,
+                fontWeight: 500,
+                color: backendStatus === 'offline' ? 'var(--danger)' : 'var(--text-secondary)',
+              }}>
+                {backendStatus === 'online'
+                  ? '本地服务已连接'
+                  : backendStatus === 'offline'
+                    ? '本地服务未连接'
+                    : '本地服务'}
+              </span>
+              <RefreshCw
+                size={12}
+                strokeWidth={1.75}
+                aria-hidden="true"
+                style={{ opacity: 0.55, flexShrink: 0 }}
+              />
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Footer */}
       <div style={{
         boxShadow: '0 -1px 0 rgba(15, 23, 42, 0.04)',
@@ -519,7 +677,7 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
         padding: collapsed ? '10px 6px' : '10px 14px',
         position: 'relative',
       }}>
-        {/* Avatar + Display Name */}
+        {/* Avatar + Display Name — 来自 Portal SSO / AUTH_ME */}
         <button
           type="button"
           aria-label="账号菜单"
@@ -532,22 +690,37 @@ export function Sidebar({ sessions, onNewSession, onSelectSession, collapsed, on
             display: 'flex', alignItems: 'center', gap: 8,
             border: 'none', background: 'transparent',
             cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+            minWidth: 0,
           }}
         >
-          <div style={{
-            width: 26, height: 26, borderRadius: '50%',
-            background: 'var(--accent)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 11, fontWeight: 600,
-            flexShrink: 0,
-          }}>
-            U
-          </div>
-          {!collapsed && (
-            <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>
-              User
-            </span>
-          )}
+          {(() => {
+            const label = (currentUser?.name || 'User').trim() || 'User'
+            const initial = Array.from(label)[0]?.toUpperCase() || 'U'
+            return (
+              <>
+                <div style={{
+                  width: 26, height: 26, borderRadius: '50%',
+                  background: 'var(--accent)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 11, fontWeight: 600,
+                  flexShrink: 0,
+                }}>
+                  {initial}
+                </div>
+                {!collapsed && (
+                  <span
+                    title={label}
+                    style={{
+                      fontSize: 12, color: 'var(--text-primary)', fontWeight: 500,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120,
+                    }}
+                  >
+                    {label}
+                  </span>
+                )}
+              </>
+            )
+          })()}
         </button>
 
         {/* Footer actions */}

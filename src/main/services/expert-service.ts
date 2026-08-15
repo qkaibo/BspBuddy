@@ -90,6 +90,32 @@ const BUILTIN_EXPERTS: Expert[] = [
     rating: 4.9,
     usageCount: 22100,
   },
+  {
+    id: 'expert-builtin-bes-audio',
+    name: 'BES音频专家',
+    title: 'BES音频专家',
+    description: '恒玄 BES 音频 SoC：蓝牙音频、ANC、DSP、固件调试与指标调优',
+    persona:
+      '你是 BES（恒玄 Bestechnic）音频方案专家，熟悉 BES2300 / BES2600 / BES2700 等芯片的蓝牙协议栈、TWS、ANC、EQ、通话降噪、DSP 与固件调试。回答时给出可验证排查步骤，不确定时说明假设，勿编造未公开寄存器或私有参数。',
+    methodology: '芯片手册 + 日志/抓包分析 + 音频指标验证 + 固件迭代',
+    toolChain: ['BES 开发套件', '蓝牙抓包', 'ANC/通话指标台架', '固件烧录工具', '音频分析仪'],
+    skills: ['蓝牙音频', 'ANC', 'DSP', 'TWS', '固件调试', '通话降噪'],
+    categories: ['engineering', 'hardware', 'audio'],
+    examples: [
+      {
+        title: 'ANC 啸叫排查',
+        description: '入耳后啸叫或增益过大',
+        prompt: 'BES2600 ANC 入耳后啸叫，帮我按模块排查',
+        expectedOutput: '分步排查清单与日志关注点',
+      },
+    ],
+    isCustom: false,
+    status: 'online',
+    isOverall: false,
+    bindings: { sopSkills: [], skills: [], mcpServers: [], knowledgeBases: [], connectors: [] },
+    rating: 4.8,
+    usageCount: 1200,
+  },
 ]
 
 const BUILTIN_TEAMS: ExpertTeam[] = [

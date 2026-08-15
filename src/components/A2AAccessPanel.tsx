@@ -34,6 +34,16 @@ interface ProbeResult {
   error?: string
 }
 
+interface TokenRow {
+  id: string
+  device_label?: string | null
+  purpose?: string
+  token_suffix?: string | null
+  expires_at: string
+  revoked_at?: string | null
+  created_at: string
+}
+
 const TTL_OPTIONS = [
   { label: '7 天', hours: 168 },
   { label: '30 天', hours: 720 },
